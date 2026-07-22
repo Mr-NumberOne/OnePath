@@ -1,0 +1,78 @@
+const FILENAME = 'ConsultantRoadmapBackup.json';
+
+// Helper to find the file ID if it exists
+export async function checkBackupExists(accessToken: string): Promise<string | null> {
+  const query = encodeURIComponent(`name='${FILENAME}' and trashed=false`);
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to search for backup file in Google Drive: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  if (data.files && data.files.length > 0) {
+    return data.files[0].id;
+  }
+  return null;
+}
+
+export async function backupToDrive(accessToken: string, data: any): Promise<void> {
+  const fileId = await checkBackupExists(accessToken);
+  const fileContent = JSON.stringify(data);
+  const metadata = {
+    name: FILENAME,
+    mimeType: 'application/json',
+  };
+
+  const form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+  form.append('file', new Blob([fileContent], { type: 'application/json' }));
+
+  let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+  let method = 'POST';
+
+  if (fileId) {
+    // Update existing file
+    url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+    method = 'PATCH';
+  }
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: form,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to upload backup to Google Drive: ${response.status} ${errorText}`);
+  }
+}
+
+export async function restoreFromDrive(accessToken: string): Promise<any> {
+  const fileId = await checkBackupExists(accessToken);
+  if (!fileId) {
+    throw new Error('No backup file found in Google Drive');
+  }
+
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to download backup from Google Drive: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data;
+}
