@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { UserProgressMap, RoadmapProgress } from "@/types";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { useSettings } from "@/contexts/SettingsContext";
+import { getStoredData, setStoredData } from "@/lib/storage";
 
 const defaultProgress: RoadmapProgress = {
   completedPhases: [],
@@ -35,31 +36,37 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   const { language } = useSettings();
 
   useEffect(() => {
-    const saved = localStorage.getItem("erp-roadmap-progress-v2");
-    if (saved) {
-      try {
-        setProgressMap(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      // Migrate from old format
-      const legacy = localStorage.getItem("erp-roadmap-progress");
-      if (legacy) {
+    let active = true;
+    (async () => {
+      const saved = await getStoredData("erp-roadmap-progress-v2");
+      if (!active) return;
+      
+      if (saved) {
         try {
-          const parsed = JSON.parse(legacy);
-          if (parsed.completedPhases) {
-            setProgressMap({ "demo-roadmap": parsed });
-          }
-        } catch(e) {}
+          setProgressMap(JSON.parse(saved));
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        // Migrate from old format
+        const legacy = await getStoredData("erp-roadmap-progress");
+        if (legacy) {
+          try {
+            const parsed = JSON.parse(legacy);
+            if (parsed.completedPhases) {
+              setProgressMap({ "demo-roadmap": parsed });
+            }
+          } catch(e) {}
+        }
       }
-    }
-    setIsLoaded(true);
+      setIsLoaded(true);
+    })();
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem("erp-roadmap-progress-v2", JSON.stringify(progressMap));
+      setStoredData("erp-roadmap-progress-v2", JSON.stringify(progressMap));
     }
   }, [progressMap, isLoaded]);
 

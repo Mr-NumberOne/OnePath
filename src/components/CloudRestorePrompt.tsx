@@ -43,8 +43,9 @@ export function CloudRestorePrompt() {
           // Backup found, prompt user
           setIsOpen(true);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to check for backup", error);
+        toast.error(`Backup check failed: ${error.message || "Unknown error"}`);
       } finally {
         setIsChecking(false);
         // Mark as checked so we don't check again this session

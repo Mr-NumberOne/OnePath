@@ -218,7 +218,7 @@ export default function ProfilePage() {
                   {language === "ar" ? "المراحل المكتملة" : "Completed Phases"}
                 </div>
                 <div className="text-4xl font-bold">
-                  {globalProgress.completedPhasesCount}
+                  {globalProgress.completedPhases.length}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {language === "ar" 

@@ -77,11 +77,19 @@ To run this application locally, you must configure Google Authentication and th
 2. Create a new project.
 3. Enable the **Google Drive API** in your project.
 4. Navigate to **APIs & Services** > **OAuth consent screen** and configure it. Add the scope `https://www.googleapis.com/auth/drive.file`.
-5. Navigate to **APIs & Services** > **Credentials**.
-6. Create an **OAuth client ID** for a **Web application**.
-7. Set Authorized JavaScript origins to `http://localhost:3000`.
-8. Set Authorized redirect URIs to `http://localhost:3000/api/auth/callback/google`.
-9. Note your **Client ID** and **Client Secret**.
+
+**For Web Development:**
+1. Navigate to **APIs & Services** > **Credentials**.
+2. Create an **OAuth client ID** for a **Web application**.
+3. Set Authorized JavaScript origins to `http://localhost:3000`.
+4. Set Authorized redirect URIs to `http://localhost:3000/api/auth/callback/google`.
+5. Note your **Client ID** and **Client Secret**.
+
+**For Desktop Development (Electron):**
+1. In the same project, click **Create Credentials** -> **OAuth client ID**.
+2. Select **Desktop app** as the Application type (Name it "OnePath Desktop" or similar).
+3. Google handles loopback redirects automatically for this application type, so you don't need to specify redirect URIs or ports.
+4. Note this new **Client ID** (a Secret is provided, but is intentionally not embedded in the desktop bundle).
 
 ### 2. Environment Variables
 
@@ -91,9 +99,16 @@ Create a file named `.env.local` in the root of the project:
 AUTH_GOOGLE_ID=your_google_client_id_here
 AUTH_GOOGLE_SECRET=your_google_client_secret_here
 AUTH_SECRET=your_random_secret_string # Generate via: npx auth secret
+
+# Required for Desktop app compilation
+AUTH_GOOGLE_DESKTOP_ID=your_google_desktop_client_id_here
+AUTH_GOOGLE_DESKTOP_SECRET=your_google_desktop_secret_here
 ```
 
-### 3. Installation & Running
+> [!NOTE]
+> The Desktop ID and Secret are safely injected into the executable during the build process. They will not be committed to source control as long as you keep them inside `.env.local`.
+
+### 3. Web Development
 
 ```bash
 # Clone the repository
@@ -109,8 +124,32 @@ npm run dev
 
 The application will be available at [http://localhost:3000](http://localhost:3000).
 
-- **Main Dashboard**: `http://localhost:3000`
-- **Builder Interface**: `http://localhost:3000/builder` (Requires Sign In)
+### 4. Desktop Development
+
+To develop the application as a desktop app using Electron:
+
+```bash
+# Start the desktop development environment (runs Next.js and Electron concurrently)
+npm run dev:desktop
+```
+*Note: This will start a Next.js server on a local port and open an Electron window.*
+
+### 5. Desktop Production Build & Installer
+
+To build the standalone executable and Windows installer:
+
+```bash
+npm run pack:windows
+```
+
+The installer will be generated at: `dist-electron/OnePath Setup 0.1.0.exe`.
+
+### 6. Code Signing
+
+Currently, the installer is unsigned. To enable code signing:
+1. Obtain a valid Windows code signing certificate.
+2. Set the appropriate `CSC_LINK` and `CSC_KEY_PASSWORD` environment variables.
+3. Re-run `npm run pack:windows`.
 
 ## 📊 Excel Import / Export
 
@@ -145,9 +184,16 @@ Fill out the attached Excel template completely. Assign realistic estimated stud
 
 ## ⚙️ Data Storage Architecture
 
+**Web Version:**
 - **Roadmap Data:** Stored server-side in a local JSON file at `src/data/custom-roadmap.json`.
 - **User Progress:** Stored in the browser's `localStorage` (Offline-first approach).
-- **Cloud Backup:** Users can authorize Google Drive to safely store an encrypted payload of their progress and roadmaps under `ConsultantRoadmapBackup.json` in their drive.
+
+**Desktop Version (Electron):**
+- **Roadmap Data:** Persisted beneath the OS's application-data directory (e.g. `%APPDATA%\OnePath\data\custom-roadmap.json` on Windows).
+- **User Progress & Settings:** Intercepted and securely stored in `%APPDATA%\OnePath\preferences.json` to survive dynamic port changes.
+
+**Cloud Backup (Both):**
+- Users can authorize Google Drive to safely store an encrypted payload of their progress and roadmaps under `ConsultantRoadmapBackup.json` in their drive.
 
 ---
 

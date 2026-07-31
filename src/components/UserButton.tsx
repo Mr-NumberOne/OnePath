@@ -49,6 +49,12 @@ export default function UserButton() {
        body: JSON.stringify([])
     });
 
+    // @ts-ignore
+    if (typeof window !== 'undefined' && window.desktopAPI?.logout) {
+      // @ts-ignore
+      await window.desktopAPI.logout();
+    }
+
     await signOut();
   };
 

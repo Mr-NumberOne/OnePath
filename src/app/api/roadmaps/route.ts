@@ -2,12 +2,19 @@ import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import { Phase, RoadmapConfig } from "@/types";
+import { auth } from "@/auth";
 
-const DATA_FILE = path.join(process.cwd(), "src", "data", "custom-roadmap.json");
+const getDataFile = () => {
+  if (process.env.ONEPATH_DATA_DIR) {
+    return path.join(process.env.ONEPATH_DATA_DIR, "custom-roadmap.json");
+  }
+  return path.join(process.cwd(), "src", "data", "custom-roadmap.json");
+};
 
 export async function GET() {
   try {
-    const fileContents = await fs.readFile(DATA_FILE, "utf-8");
+    const dataFile = getDataFile();
+    const fileContents = await fs.readFile(dataFile, "utf-8");
     let data = JSON.parse(fileContents);
     
     // Migration from old format: { en: Phase[], ar: Phase[] }
@@ -24,8 +31,10 @@ export async function GET() {
         }
       };
       data = [demoRoadmap];
-      // Save migrated data
-      await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+      // Save migrated data (atomic)
+      const tmpFile = `${dataFile}.tmp`;
+      await fs.writeFile(tmpFile, JSON.stringify(data, null, 2), "utf-8");
+      await fs.rename(tmpFile, dataFile);
     }
 
     return NextResponse.json(data); // returns RoadmapConfig[]
@@ -37,13 +46,26 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json(); // should be RoadmapConfig[]
     
     if (!Array.isArray(body)) {
       return NextResponse.json({ error: "Invalid roadmap data format" }, { status: 400 });
     }
 
-    await fs.writeFile(DATA_FILE, JSON.stringify(body, null, 2), "utf-8");
+    // Basic size limitation (500 items max to prevent abuse)
+    if (body.length > 500) {
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+    }
+
+    const dataFile = getDataFile();
+    const tmpFile = `${dataFile}.tmp`;
+    await fs.writeFile(tmpFile, JSON.stringify(body, null, 2), "utf-8");
+    await fs.rename(tmpFile, dataFile);
 
     return NextResponse.json({ success: true, message: "Roadmaps saved successfully" });
   } catch (error) {

@@ -6,15 +6,45 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useSettings } from "@/contexts/SettingsContext";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function LoginPage() {
   const { language } = useSettings();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    await signIn("google", { callbackUrl: "/" });
+    
+    // @ts-ignore
+    if (typeof window !== 'undefined' && window.desktopAPI?.startGoogleAuth) {
+      try {
+        // @ts-ignore
+        const result = await window.desktopAPI.startGoogleAuth();
+        const res = await signIn("desktop", { 
+          redirect: false,
+          accessToken: result.access_token,
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          image: result.user.image
+        });
+
+        if (res?.ok && !res.error) {
+          router.push("/");
+          router.refresh();
+        } else {
+          console.error("NextAuth signin failed", res?.error);
+          setIsLoading(false);
+        }
+      } catch (e) {
+        console.error("Desktop auth failed:", e);
+        setIsLoading(false);
+      }
+    } else {
+      await signIn("google", { callbackUrl: "/" });
+    }
   };
 
   return (

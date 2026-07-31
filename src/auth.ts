@@ -11,6 +11,8 @@ declare module "next-auth" {
   }
 }
 
+import Credentials from "next-auth/providers/credentials"
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Google({
@@ -22,13 +24,41 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           scope: "openid email profile https://www.googleapis.com/auth/drive.file"
         }
       }
+    }),
+    Credentials({
+      id: "desktop",
+      name: "Desktop Local Auth",
+      credentials: {
+        accessToken: { label: "Access Token", type: "text" },
+        id: { label: "ID", type: "text" },
+        name: { label: "Name", type: "text" },
+        email: { label: "Email", type: "text" },
+        image: { label: "Image", type: "text" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.accessToken || !credentials?.id) {
+          return null;
+        }
+        
+        // Return a custom user object matching what NextAuth expects
+        return {
+          id: credentials.id as string,
+          name: credentials.name as string,
+          email: credentials.email as string,
+          image: credentials.image as string,
+          accessToken: credentials.accessToken as string, // Temporary prop to pass to jwt callback
+        };
+      }
     })
   ],
   callbacks: {
-    async jwt({ token, account }) {
+    async jwt({ token, account, user }) {
       // Persist the OAuth access_token to the token right after signin
-      if (account) {
+      if (account?.access_token) {
         token.accessToken = account.access_token
+      } else if (user && 'accessToken' in user) {
+        // Desktop credentials flow
+        token.accessToken = (user as any).accessToken;
       }
       return token
     },

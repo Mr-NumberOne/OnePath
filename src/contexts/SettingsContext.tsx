@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { getStoredData, setStoredData } from "@/lib/storage";
 
 type Language = "en" | "ar";
 
@@ -16,11 +17,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    const storedLang = localStorage.getItem("roadmap-language") as Language;
-    if (storedLang === "en" || storedLang === "ar") {
-      setLanguageState(storedLang);
-    }
+    let active = true;
+    getStoredData("roadmap-language").then(storedLang => {
+      if (!active) return;
+      setMounted(true);
+      if (storedLang === "en" || storedLang === "ar") {
+        setLanguageState(storedLang as Language);
+      }
+    });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -28,7 +33,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     
     document.documentElement.lang = language;
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
-    localStorage.setItem("roadmap-language", language);
+    setStoredData("roadmap-language", language);
   }, [language, mounted]);
 
   const setLanguage = (lang: Language) => {

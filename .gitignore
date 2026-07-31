@@ -56,3 +56,8 @@ AGENTS.md
 # Local exports and backups
 *.xlsx
 ConsultantRoadmapBackup.json
+
+# Electron desktop app builds
+desktop/dist/
+dist-electron/
+desktop/env.ts

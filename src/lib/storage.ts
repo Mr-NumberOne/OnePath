@@ -1,0 +1,32 @@
+export async function getStoredData(key: string): Promise<string | null> {
+  if (typeof window !== 'undefined' && (window as any).desktopAPI) {
+    try {
+      const val = await (window as any).desktopAPI.getStoreValue(key);
+      return val || null;
+    } catch (e) {
+      console.error('Failed to get from desktop storage', e);
+      return null;
+    }
+  }
+  
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(key);
+  }
+  
+  return null;
+}
+
+export async function setStoredData(key: string, value: string): Promise<void> {
+  if (typeof window !== 'undefined' && (window as any).desktopAPI) {
+    try {
+      await (window as any).desktopAPI.setStoreValue(key, value);
+      return;
+    } catch (e) {
+      console.error('Failed to save to desktop storage', e);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(key, value);
+  }
+}
