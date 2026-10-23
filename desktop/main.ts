@@ -1,8 +1,10 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { setupStorageHandlers, getAuthSecret } from './storage';
 import { ServerManager } from './server-manager';
 import { startGoogleAuthFlow, clearAuthTokens } from './auth';
+
+const MAX_LOAD_RETRIES = 5;
 
 const serverManager = new ServerManager();
 let mainWindow: BrowserWindow | null = null;
@@ -61,10 +63,22 @@ async function createWindow() {
     const loadURL = `http://127.0.0.1:${port}`;
     mainWindow.loadURL(loadURL);
 
-    // Handle page load failures (e.g., server not ready yet)
-    mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    // Handle page load failures (e.g. the dev server restarting). The packaged
+    // server is already answering by now, so a few retries are enough.
+    let failedLoads = 0;
+    mainWindow.webContents.on('did-finish-load', () => {
+      failedLoads = 0;
+    });
+    mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, _url, isMainFrame) => {
+      // -3 (ERR_ABORTED) just means another navigation replaced this one
+      if (!isMainFrame || errorCode === -3) return;
       console.error(`Page failed to load: ${errorCode} ${errorDescription}`);
-      // Retry after a short delay — the server may still be starting
+
+      failedLoads += 1;
+      if (failedLoads > MAX_LOAD_RETRIES) {
+        showFatalError(`The app page could not be loaded (${errorDescription}).`);
+        return;
+      }
       setTimeout(() => {
         mainWindow?.loadURL(loadURL);
       }, 2000);
@@ -106,9 +120,14 @@ async function createWindow() {
 
   } catch (error) {
     console.error('Failed to start application:', error);
-    // Could show a native error dialog here
-    app.quit();
+    showFatalError(error instanceof Error ? error.message : String(error));
   }
+}
+
+// Shows a native error dialog and quits; used when the app can't start.
+function showFatalError(detail: string) {
+  dialog.showErrorBox('OnePath could not start', `${detail}\n\nPlease restart the app. If this keeps happening, reinstall OnePath.`);
+  app.quit();
 }
 
 // Single instance lock

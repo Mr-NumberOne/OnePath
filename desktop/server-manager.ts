@@ -25,6 +25,27 @@ export async function findFreePort(startPort: number = 3000): Promise<number> {
   });
 }
 
+const SERVER_START_TIMEOUT_MS = 30_000;
+const SERVER_POLL_INTERVAL_MS = 250;
+
+// Polls the server until it answers an HTTP request. Rejects if getError()
+// reports that the process failed, or when the timeout runs out.
+async function waitForServer(url: string, getError: () => Error | null, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const error = getError();
+    if (error) throw error;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      if (res.status < 500) return;
+    } catch {
+      // Not listening yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, SERVER_POLL_INTERVAL_MS));
+  }
+  throw new Error(`Next.js server did not respond within ${timeoutMs / 1000}s`);
+}
+
 export class ServerManager {
   private serverProcess: ChildProcess | null = null;
   public port: number | null = null;
@@ -68,46 +89,44 @@ export class ServerManager {
       fs.mkdirSync(dataDir, { recursive: true });
     }
 
-    return new Promise((resolve, reject) => {
-      this.serverProcess = fork(serverJsPath, [], {
-        cwd: nextDir,
-        env: {
-          ...process.env,
-          NODE_ENV: 'production',
-          PORT: this.port!.toString(),
-          HOSTNAME: '127.0.0.1',
-          ONEPATH_DATA_DIR: dataDir, // Narrowly scoped env var for roadmap data
-          AUTH_GOOGLE_ID: CLIENT_ID,
-          AUTH_GOOGLE_SECRET: CLIENT_SECRET,
-        },
-        stdio: ['ignore', 'pipe', 'pipe', 'ipc']
-      });
-
-      this.serverProcess.stdout?.on('data', (data) => {
-        const out = data.toString();
-        console.log(`[Next.js] ${out}`);
-        // Wait until server is listening
-        if (out.includes(`Listening on port`) || out.includes(`http://127.0.0.1:${this.port}`) || out.includes(`Ready in`)) {
-          resolve(this.port!);
-        }
-      });
-
-      this.serverProcess.stderr?.on('data', (data) => {
-        console.error(`[Next.js Error] ${data.toString()}`);
-      });
-
-      this.serverProcess.on('error', (err) => {
-        console.error('Failed to start Next.js server:', err);
-        reject(err);
-      });
-
-      this.serverProcess.on('exit', (code) => {
-        console.log(`Next.js server exited with code ${code}`);
-      });
-      
-      // Fallback timeout in case output doesn't match
-      setTimeout(() => resolve(this.port!), 3000);
+    const port = this.port;
+    const serverProcess = fork(serverJsPath, [], {
+      cwd: nextDir,
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        PORT: port.toString(),
+        HOSTNAME: '127.0.0.1',
+        ONEPATH_DATA_DIR: dataDir, // Narrowly scoped env var for roadmap data
+        AUTH_GOOGLE_ID: CLIENT_ID,
+        AUTH_GOOGLE_SECRET: CLIENT_SECRET,
+      },
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc']
     });
+    this.serverProcess = serverProcess;
+
+    serverProcess.stdout?.on('data', (data) => {
+      console.log(`[Next.js] ${data.toString()}`);
+    });
+
+    serverProcess.stderr?.on('data', (data) => {
+      console.error(`[Next.js Error] ${data.toString()}`);
+    });
+
+    // Fails fast if the server can't be spawned or dies before it is ready
+    let exitError: Error | null = null;
+    serverProcess.on('error', (err) => {
+      console.error('Failed to start Next.js server:', err);
+      exitError = err;
+    });
+    serverProcess.on('exit', (code) => {
+      console.log(`Next.js server exited with code ${code}`);
+      exitError ??= new Error(`Next.js server exited with code ${code} before it was ready`);
+      if (this.serverProcess === serverProcess) this.serverProcess = null;
+    });
+
+    await waitForServer(`http://127.0.0.1:${port}/api/auth/providers`, () => exitError, SERVER_START_TIMEOUT_MS);
+    return port;
   }
 
   stopServer() {
