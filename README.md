@@ -1,7 +1,7 @@
 # OnePath - Consultant Roadmap Builder
 
 <div align="center">
-  <img src="public/banner2.png" alt="OnePath Banner" width="950" />
+  <img src="docs/images/banner2.png" alt="OnePath Banner" width="950" />
 </div>
 
 <p align="center">
