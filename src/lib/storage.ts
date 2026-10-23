@@ -1,7 +1,7 @@
 export async function getStoredData(key: string): Promise<string | null> {
-  if (typeof window !== 'undefined' && (window as any).desktopAPI) {
+  if (typeof window !== 'undefined' && window.desktopAPI) {
     try {
-      const val = await (window as any).desktopAPI.getStoreValue(key);
+      const val = await window.desktopAPI.getStoreValue(key);
       return val || null;
     } catch (e) {
       console.error('Failed to get from desktop storage', e);
@@ -17,9 +17,9 @@ export async function getStoredData(key: string): Promise<string | null> {
 }
 
 export async function setStoredData(key: string, value: string): Promise<void> {
-  if (typeof window !== 'undefined' && (window as any).desktopAPI) {
+  if (typeof window !== 'undefined' && window.desktopAPI) {
     try {
-      await (window as any).desktopAPI.setStoreValue(key, value);
+      await window.desktopAPI.setStoreValue(key, value);
       return;
     } catch (e) {
       console.error('Failed to save to desktop storage', e);
@@ -32,9 +32,9 @@ export async function setStoredData(key: string, value: string): Promise<void> {
 }
 
 export async function removeStoredData(key: string): Promise<void> {
-  if (typeof window !== 'undefined' && (window as any).desktopAPI) {
+  if (typeof window !== 'undefined' && window.desktopAPI) {
     try {
-      await (window as any).desktopAPI.deleteStoreValue(key);
+      await window.desktopAPI.deleteStoreValue(key);
     } catch (e) {
       console.error('Failed to delete from desktop storage', e);
     }

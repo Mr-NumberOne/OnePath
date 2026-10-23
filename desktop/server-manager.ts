@@ -15,7 +15,7 @@ export async function findFreePort(startPort: number = 3000): Promise<number> {
       server.close();
     });
 
-    server.on('error', (err: any) => {
+    server.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
         resolve(findFreePort(port + 1));
       } else {

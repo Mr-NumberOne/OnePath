@@ -62,9 +62,16 @@ async function storeRefreshToken(token: string): Promise<boolean> {
   }
 }
 
+export interface GoogleUser {
+  id: string;
+  name?: string;
+  email?: string;
+  image?: string;
+}
+
 export interface DesktopAuthResult {
   access_token: string;
-  user: any;
+  user: GoogleUser;
   // False when the sign-in could not be remembered for the next launch
   rememberedLogin: boolean;
 }
@@ -117,7 +124,7 @@ export async function refreshAccessToken(): Promise<DesktopAuthResult | null> {
   }
 }
 
-async function fetchUserInfo(accessToken: string) {
+async function fetchUserInfo(accessToken: string): Promise<GoogleUser> {
   const response = await fetch(GOOGLE_USERINFO_URL, {
     headers: { Authorization: `Bearer ${accessToken}` }
   });

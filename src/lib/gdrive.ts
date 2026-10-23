@@ -28,7 +28,7 @@ export async function checkBackupExists(accessToken: string): Promise<string | n
   return null;
 }
 
-export async function backupToDrive(accessToken: string, data: any): Promise<void> {
+export async function backupToDrive(accessToken: string, data: unknown): Promise<void> {
   const fileId = await checkBackupExists(accessToken);
   const fileContent = JSON.stringify(data);
   const metadata = {
@@ -63,7 +63,7 @@ export async function backupToDrive(accessToken: string, data: any): Promise<voi
   }
 }
 
-export async function restoreFromDrive(accessToken: string): Promise<any> {
+export async function restoreFromDrive(accessToken: string): Promise<unknown> {
   const fileId = await checkBackupExists(accessToken);
   if (!fileId) {
     throw new Error('No backup file found in Google Drive');

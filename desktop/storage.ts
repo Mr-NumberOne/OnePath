@@ -23,7 +23,7 @@ export const getStore = () => {
   return {};
 };
 
-export const saveStore = (data: any) => {
+export const saveStore = (data: Record<string, unknown>) => {
   const storeFilePath = path.join(app.getPath('userData'), 'preferences.json');
   try {
     const tempFile = `${storeFilePath}.tmp`;
@@ -92,8 +92,8 @@ export function setupStorageHandlers() {
     return store[key];
   });
 
-  ipcMain.handle('store-set', (event, key: string, value: any) => {
-    if (!RENDERER_KEYS.has(key)) return false;
+  ipcMain.handle('store-set', (event, key: string, value: unknown) => {
+    if (!RENDERER_KEYS.has(key) || typeof value !== 'string') return false;
     const store = getStore();
     store[key] = value;
     saveStore(store);

@@ -31,7 +31,10 @@ export async function buildBackupPayload(roadmaps: RoadmapConfig[]): Promise<Bac
 
 // Writes a downloaded backup into local storage and the roadmap API.
 // Callers should reload the page afterwards so the contexts pick it up.
-export async function applyBackup(data: Partial<BackupPayload> | UserProgressMap): Promise<void> {
+export async function applyBackup(data: unknown): Promise<void> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('The backup file is not in a format OnePath recognises.');
+  }
   const backup = data as Partial<BackupPayload>;
   if (backup.progress && backup.roadmaps) {
     // New format: contains progress, roadmaps, and settings.

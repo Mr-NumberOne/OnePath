@@ -22,9 +22,9 @@ async function createWindow() {
     try {
       const result = await startGoogleAuthFlow();
       return result;
-    } catch (e: any) {
+    } catch (e) {
       console.error("Google auth failed:", e);
-      throw new Error(e.message || "Auth failed");
+      throw new Error((e instanceof Error && e.message) || "Auth failed");
     }
   });
 

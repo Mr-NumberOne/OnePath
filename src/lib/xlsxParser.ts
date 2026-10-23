@@ -53,6 +53,12 @@ export const downloadExcelTemplate = (language: "en" | "ar") => {
   XLSX.writeFile(wb, filename);
 };
 
+// A spreadsheet row keyed by its column header
+type SheetRow = Record<string, string | number | boolean | undefined>;
+
+// Reads a cell as text; numbers typed into ID columns become strings
+const cell = (value: SheetRow[string]): string => (value === undefined || value === null ? "" : String(value));
+
 export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -66,29 +72,29 @@ export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
         const wsMeta = wb.Sheets["Roadmap Meta"];
         if (!wsMeta) throw new Error("Missing 'Roadmap Meta' sheet");
         
-        const metaRows = XLSX.utils.sheet_to_json(wsMeta) as any[];
+        const metaRows = XLSX.utils.sheet_to_json<SheetRow>(wsMeta);
         
-        const enMeta = metaRows.find(r => r.Language === "en") || {};
-        const arMeta = metaRows.find(r => r.Language === "ar") || {};
+        const enMeta: SheetRow = metaRows.find(r => r.Language === "en") || {};
+        const arMeta: SheetRow = metaRows.find(r => r.Language === "ar") || {};
 
         const config: RoadmapConfig = {
           id: generateId('rm'),
           title: { 
-            en: enMeta.Title || "Untitled", 
-            ar: arMeta.Title || "بدون عنوان" 
+            en: cell(enMeta.Title) || "Untitled", 
+            ar: cell(arMeta.Title) || "بدون عنوان" 
           },
           description: { 
-            en: enMeta.Description || "", 
-            ar: arMeta.Description || "" 
+            en: cell(enMeta.Description) || "", 
+            ar: cell(arMeta.Description) || "" 
           },
           category: { 
-            en: enMeta.Category || "General", 
-            ar: arMeta.Category || "عام" 
+            en: cell(enMeta.Category) || "General", 
+            ar: cell(arMeta.Category) || "عام" 
           },
           isEnabled: false,
           radarCategories: {
-            en: (enMeta['RadarCategories (hyphen separated)'] || "").split("-").map((s: string) => s.trim()).filter(Boolean),
-            ar: (arMeta['RadarCategories (hyphen separated)'] || "").split("-").map((s: string) => s.trim()).filter(Boolean)
+            en: (cell(enMeta['RadarCategories (hyphen separated)']) || "").split("-").map((s: string) => s.trim()).filter(Boolean),
+            ar: (cell(arMeta['RadarCategories (hyphen separated)']) || "").split("-").map((s: string) => s.trim()).filter(Boolean)
           },
           phases: { en: [], ar: [] }
         };
@@ -97,16 +103,16 @@ export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
         const stepsByLangPhase: Record<string, PhaseStep[]> = {};
         const wsSteps = wb.Sheets["Steps"];
         if (wsSteps) {
-          const stepRows = XLSX.utils.sheet_to_json(wsSteps) as any[];
+          const stepRows = XLSX.utils.sheet_to_json<SheetRow>(wsSteps);
           for (const row of stepRows) {
-            const lang = row.Language || "en";
-            const phaseId = row.PhaseID || "";
+            const lang = cell(row.Language) || "en";
+            const phaseId = cell(row.PhaseID) || "";
             const key = `${lang}::${phaseId}`;
             const step: PhaseStep = {
-              id: row.StepID || generateId('step'),
-              title: row.Title || "Untitled Step",
-              description: row.Description || "",
-              order: Number(row.Order) || 1,
+              id: cell(row.StepID) || generateId('step'),
+              title: cell(row.Title) || "Untitled Step",
+              description: cell(row.Description) || "",
+              order: Number(cell(row.Order)) || 1,
               resources: []
             };
             if (!stepsByLangPhase[key]) stepsByLangPhase[key] = [];
@@ -119,15 +125,15 @@ export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
         const stepResourcesByLangStep: Record<string, ResourceLink[]> = {};
         const wsResources = wb.Sheets["Resources"];
         if (wsResources) {
-          const resourceRows = XLSX.utils.sheet_to_json(wsResources) as any[];
+          const resourceRows = XLSX.utils.sheet_to_json<SheetRow>(wsResources);
           for (const row of resourceRows) {
-            const lang = row.Language || "en";
-            const phaseId = row.PhaseID || "";
-            const stepId = (row['StepID (optional)'] || "").toString().trim();
+            const lang = cell(row.Language) || "en";
+            const phaseId = cell(row.PhaseID) || "";
+            const stepId = (cell(row['StepID (optional)']) || "").toString().trim();
             const resource: ResourceLink = {
-              id: row.ResourceID || generateId('res'),
-              title: row.Title || "Untitled Resource",
-              url: row.URL || ""
+              id: cell(row.ResourceID) || generateId('res'),
+              title: cell(row.Title) || "Untitled Resource",
+              url: cell(row.URL) || ""
             };
             if (stepId) {
               // Attach to a specific step
@@ -146,10 +152,10 @@ export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
         // 4. Parse Phases and attach steps + resources
         const wsPhases = wb.Sheets["Phases"];
         if (wsPhases) {
-          const phaseRows = XLSX.utils.sheet_to_json(wsPhases) as any[];
+          const phaseRows = XLSX.utils.sheet_to_json<SheetRow>(wsPhases);
           
-          const processPhaseRow = (row: any, lang: string): Phase => {
-            const phaseId = row.PhaseID || generateId('phase');
+          const processPhaseRow = (row: SheetRow, lang: string): Phase => {
+            const phaseId = cell(row.PhaseID) || generateId('phase');
             const key = `${lang}::${phaseId}`;
 
             // Get steps for this phase and attach step-level resources
@@ -163,14 +169,14 @@ export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
 
             return {
               id: phaseId,
-              title: row.Title || "Untitled Phase",
-              description: row.Description || "",
-              category: row.Category || "General",
-              estimatedHours: Number(row.EstimatedHours) || 0,
-              order: Number(row.Order) || 1,
-              prerequisites: (row['Prerequisites (comma separated)'] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-              objectives: (row['Objectives (comma separated)'] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
-              milestones: (row['Milestones (comma separated)'] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+              title: cell(row.Title) || "Untitled Phase",
+              description: cell(row.Description) || "",
+              category: cell(row.Category) || "General",
+              estimatedHours: Number(cell(row.EstimatedHours)) || 0,
+              order: Number(cell(row.Order)) || 1,
+              prerequisites: (cell(row['Prerequisites (comma separated)']) || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+              objectives: (cell(row['Objectives (comma separated)']) || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+              milestones: (cell(row['Milestones (comma separated)']) || "").split(",").map((s: string) => s.trim()).filter(Boolean),
               steps,
               resources: phaseResourcesByLangPhase[key] || []
             };

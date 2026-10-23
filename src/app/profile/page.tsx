@@ -35,9 +35,9 @@ export default function ProfilePage() {
       const backupPayload = await buildBackupPayload(roadmaps);
       await backupToDrive(token, backupPayload);
       toast.success(language === "ar" ? "تم النسخ الاحتياطي بنجاح!" : "Backup successful!");
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error(e.message || "Failed to backup to Google Drive.");
+      toast.error((e instanceof Error && e.message) || "Failed to backup to Google Drive.");
     } finally {
       setIsSyncing(false);
     }
@@ -62,9 +62,9 @@ export default function ProfilePage() {
         toast.success(language === "ar" ? "تم الاستعادة بنجاح!" : "Restore successful!");
         window.location.reload();
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error(e.message || "Failed to restore from Google Drive.");
+      toast.error((e instanceof Error && e.message) || "Failed to restore from Google Drive.");
     } finally {
       setIsSyncing(false);
     }

@@ -73,9 +73,9 @@ export default function UserButton() {
       await backupToDrive(token, backupPayload);
       toast.success(language === "ar" ? "تم النسخ الاحتياطي بنجاح!" : "Backup successful!");
       await confirmLogout();
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error(e.message || (language === "ar" ? "فشل النسخ الاحتياطي." : "Failed to backup to Google Drive."));
+      toast.error((e instanceof Error && e.message) || (language === "ar" ? "فشل النسخ الاحتياطي." : "Failed to backup to Google Drive."));
       setIsBackingUp(false);
     }
   };

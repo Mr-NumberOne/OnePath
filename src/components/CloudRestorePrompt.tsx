@@ -43,9 +43,9 @@ export function CloudRestorePrompt() {
           // Backup found, prompt user
           setIsOpen(true);
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error("Failed to check for backup", error);
-        toast.error(`Backup check failed: ${error.message || "Unknown error"}`);
+        toast.error(`Backup check failed: ${(error instanceof Error && error.message) || "Unknown error"}`);
       } finally {
         // Mark as checked so we don't check again this session
         sessionStorage.setItem("hasCheckedBackup", "true");
@@ -67,9 +67,9 @@ export function CloudRestorePrompt() {
         toast.success(language === "ar" ? "تم الاستعادة بنجاح!" : "Restore successful!");
         window.location.reload();
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error(e.message || "Failed to restore from Google Drive.");
+      toast.error((e instanceof Error && e.message) || "Failed to restore from Google Drive.");
     } finally {
       setIsRestoring(false);
       setIsOpen(false);
