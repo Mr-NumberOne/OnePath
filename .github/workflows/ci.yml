@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # desktop/env.ts is generated at build time; without .env.local it gets empty values
+      - name: Generate desktop env
+        run: node scripts/generate-env.js
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholders so Auth.js config loads; nothing is signed or called in CI
+          AUTH_SECRET: ci-placeholder-secret
+          AUTH_GOOGLE_ID: ci-placeholder-id
+          AUTH_GOOGLE_SECRET: ci-placeholder-secret
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
