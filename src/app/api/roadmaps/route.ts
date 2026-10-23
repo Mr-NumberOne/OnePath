@@ -21,11 +21,22 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const dataFile = getDataFile();
+  let fileContents: string;
   try {
-    const dataFile = getDataFile();
-    const fileContents = await fs.readFile(dataFile, "utf-8");
+    fileContents = await fs.readFile(dataFile, "utf-8");
+  } catch (error) {
+    // No file yet means no roadmaps; anything else is a real failure
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return NextResponse.json([]);
+    }
+    console.error("Failed to read roadmaps", error);
+    return NextResponse.json({ error: "Failed to read roadmaps" }, { status: 500 });
+  }
+
+  try {
     let data = JSON.parse(fileContents);
-    
+
     // Migration from old format: { en: Phase[], ar: Phase[] }
     if (data.en && Array.isArray(data.en) && !Array.isArray(data)) {
       const demoRoadmap: RoadmapConfig = {
@@ -48,8 +59,9 @@ export async function GET() {
 
     return NextResponse.json(data); // returns RoadmapConfig[]
   } catch (error) {
-    // If file doesn't exist, return empty array so client can handle it
-    return NextResponse.json([], { status: 200 });
+    // Don't return [] here: the next save would overwrite the unreadable file
+    console.error("Failed to parse roadmaps file", error);
+    return NextResponse.json({ error: "Roadmaps file is corrupt" }, { status: 500 });
   }
 }
 
