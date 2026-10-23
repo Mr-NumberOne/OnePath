@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { Phase, RoadmapConfig } from "@/types";
 import { generateId } from "@/lib/utils";
+import { Language, otherLanguage, removePhase, syncPhaseAdd, syncPhaseUpdate } from "@/lib/roadmapSync";
 import { PhaseForm } from "@/components/admin/PhaseForm";
 import Roadmap from "@/components/roadmap/Roadmap";
 import { Button } from "@/components/ui/button";
@@ -85,15 +86,17 @@ export default function RoadmapEditor() {
       order: (draftRoadmap.phases[language as "en" | "ar"] || []).length + 1,
     };
     
+    // Phases exist in both languages with the same ID; only the text differs
     setDraftRoadmap((prev) => {
       if (!prev) return prev;
-      const lang = language as "en" | "ar";
+      const lang = language as Language;
+      const other = otherLanguage(lang);
       return {
         ...prev,
         phases: {
-          ...prev.phases,
-          [lang]: [...(prev.phases[lang] || []), newPhase]
-        }
+          [lang]: [...(prev.phases[lang] || []), newPhase],
+          [other]: syncPhaseAdd(prev.phases[other] || [], newPhase),
+        } as RoadmapConfig["phases"]
       };
     });
   };
@@ -101,13 +104,17 @@ export default function RoadmapEditor() {
   const handleUpdatePhase = (updatedPhase: Phase) => {
     setDraftRoadmap((prev) => {
       if (!prev) return prev;
-      const lang = language as "en" | "ar";
+      const lang = language as Language;
+      const other = otherLanguage(lang);
+      const previousPhase = prev.phases[lang].find((p) => p.id === updatedPhase.id);
       return {
         ...prev,
         phases: {
-          ...prev.phases,
-          [lang]: prev.phases[lang].map((p) => (p.id === updatedPhase.id ? updatedPhase : p))
-        }
+          [lang]: prev.phases[lang].map((p) => (p.id === updatedPhase.id ? updatedPhase : p)),
+          [other]: previousPhase
+            ? syncPhaseUpdate(prev.phases[other] || [], previousPhase, updatedPhase)
+            : prev.phases[other] || [],
+        } as RoadmapConfig["phases"]
       };
     });
   };
@@ -115,18 +122,11 @@ export default function RoadmapEditor() {
   const handleDeletePhase = (phaseId: string) => {
     setDraftRoadmap((prev) => {
       if (!prev) return prev;
-      const lang = language as "en" | "ar";
-      const filtered = prev.phases[lang].filter((p) => p.id !== phaseId);
-      const cleaned = filtered.map((p) => ({
-        ...p,
-        prerequisites: p.prerequisites.filter((prereqId) => prereqId !== phaseId)
-      }));
-
       return {
         ...prev,
         phases: {
-          ...prev.phases,
-          [lang]: cleaned
+          en: removePhase(prev.phases.en || [], phaseId),
+          ar: removePhase(prev.phases.ar || [], phaseId),
         }
       };
     });
