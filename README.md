@@ -21,11 +21,13 @@
 
 - **Interactive Node-based Roadmaps**: Visualize complex learning paths and phases using `React Flow` with a fully interactive pan-and-zoom interface.
 - **Bilingual Support (RTL/LTR)**: Fully localized in both English and Arabic, seamlessly switching layouts based on user preference.
-- **Google Drive Integration**: Securely backup and restore all local progress, roadmaps, and UI preferences directly to/from the user's personal Google Drive.
+- **Google Drive Integration**: Back up and restore all local progress, roadmaps, and UI preferences to/from the user's personal Google Drive, with a side-by-side preview before anything is overwritten.
 - **Skill Radar Charts**: Dynamic visualization of a consultant's skill profile using `Recharts`, powered by the categories defined per roadmap.
-- **Roadmap Builder Dashboard**: A protected backend UI (`/builder`) requiring Google Authentication for creating, editing, and managing roadmaps.
+- **Roadmap Builder Dashboard**: A protected backend UI (`/builder`) requiring Google Authentication for creating, editing, and managing roadmaps, with undo/redo (Ctrl+Z / Ctrl+Y), unsaved changes kept as a local draft, and English/Arabic phases kept in sync.
 - **Progress Tracking**: Tracks completed phases and steps, automatically calculating study hours and "Portfolio Score". Progress is persistently stored locally until backed up to the cloud.
 - **Dark Mode Support**: Deep integration with `next-themes` and Tailwind CSS to provide a beautiful, seamless dark/light mode toggle.
+- **Keyboard and Screen Reader Friendly**: Roadmap phases are reachable with Tab, open with Enter, and are announced with their status in English or Arabic.
+- **Desktop Auto-Update**: The Windows app updates itself from GitHub Releases.
 
 ## 🛠️ Tech Stack
 
@@ -150,14 +152,26 @@ To build the standalone executable and Windows installer:
 npm run pack:windows
 ```
 
-The installer will be generated at: `dist-electron/OnePath Setup 0.1.0.exe`.
+The installer will be generated at: `dist-electron/OnePath Setup <version>.exe`. Local builds never publish anything (`--publish never`).
 
-### 6. Code Signing
+### 6. Publishing an Update
+
+The installed app checks [GitHub Releases](https://github.com/Mr-NumberOne/OnePath/releases) for a newer version on start and every 6 hours, downloads it in the background and offers to restart. To ship an update:
+
+1. Bump `version` in `package.json` (for example `0.2.0`).
+2. Run `npm run pack:windows`.
+3. Create a GitHub release tagged `v0.2.0` and attach these files from `dist-electron/`: `OnePath Setup 0.2.0.exe`, `OnePath Setup 0.2.0.exe.blockmap` and `latest.yml`.
+
+Until a release with `latest.yml` exists, the update check just logs that nothing was found.
+
+### 7. Code Signing
 
 Currently, the installer is unsigned. To enable code signing:
 1. Obtain a valid Windows code signing certificate.
 2. Set the appropriate `CSC_LINK` and `CSC_KEY_PASSWORD` environment variables.
 3. Re-run `npm run pack:windows`.
+
+Unsigned installers trigger a Windows SmartScreen warning on first install. Packaging settings live in `electron-builder.yml`.
 
 ## 🧪 Testing and Checks
 
@@ -165,7 +179,7 @@ Currently, the installer is unsigned. To enable code signing:
 npm test
 ```
 
-Runs the Vitest suites (API route, Excel parser, Drive backup, bilingual sync, schema). Other checks:
+Runs the Vitest suites (API route, Excel parser, JSON import, Drive backup and restore preview, bilingual sync, editor history and drafts, schema). Other checks:
 
 | Command | What it checks |
 |---|---|
@@ -175,9 +189,11 @@ Runs the Vitest suites (API route, Excel parser, Drive backup, bilingual sync, s
 
 GitHub Actions runs all of these, plus `npm audit --omit=dev`, on every push to `main` and every pull request (`.github/workflows/ci.yml`).
 
-## 📊 Excel Import / Export
+## 📊 Excel and JSON Import / Export
 
 You can bulk-create roadmaps by importing a structured `.xlsx` file. The template includes 4 sheets covering all roadmap data: metadata, phases, steps, and resources — with full bilingual (EN/AR) support.
+
+To copy a roadmap exactly (for example between the web and desktop apps), use the **Export to JSON** button on its card and **Import** the `.json` file. If a roadmap with the same ID already exists, the import is added as a new roadmap instead of replacing it.
 
 > [!TIP]
 > **AI-Assisted Roadmap Generation:** To significantly accelerate the roadmap creation process, you may provide the blank Excel template to a Large Language Model (e.g., ChatGPT, Claude, or Gemini) alongside a specific job description or curriculum outline. The AI can be instructed to populate the template's structured sheets, instantly providing you with a comprehensive, ready-to-import roadmap for OnePath.
