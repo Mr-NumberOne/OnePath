@@ -106,7 +106,9 @@ AUTH_GOOGLE_DESKTOP_SECRET=your_google_desktop_secret_here
 ```
 
 > [!NOTE]
-> The Desktop ID and Secret are safely injected into the executable during the build process. They will not be committed to source control as long as you keep them inside `.env.local`.
+> The Desktop ID and Secret are injected into the executable during the build process, so they stay out of source control as long as you keep them inside `.env.local`.
+>
+> The Desktop secret is **not confidential** once the installer is shipped: anyone can extract it. That is expected — Google's token endpoint still requires it for "Desktop app" clients, but its [installed-app guidance](https://developers.google.com/identity/protocols/oauth2/native-app) treats it as public. Sign-in is protected by PKCE and the loopback redirect instead, and the server only accepts tokens issued to this client ID. Never reuse the **Web** client secret (`AUTH_GOOGLE_SECRET`) for the desktop build.
 
 ### 3. Web Development
 
