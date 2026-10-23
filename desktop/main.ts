@@ -1,7 +1,6 @@
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import path from 'path';
-import crypto from 'crypto';
-import { setupStorageHandlers, getStore, saveStore } from './storage';
+import { setupStorageHandlers, getAuthSecret } from './storage';
 import { ServerManager } from './server-manager';
 import { startGoogleAuthFlow, clearAuthTokens } from './auth';
 
@@ -12,12 +11,7 @@ async function createWindow() {
   setupStorageHandlers();
 
   // Generate or load AUTH_SECRET for Next.js Desktop Mode
-  const store = getStore();
-  if (!store.authSecret) {
-    store.authSecret = crypto.randomBytes(32).toString('hex');
-    saveStore(store);
-  }
-  process.env.AUTH_SECRET = store.authSecret;
+  process.env.AUTH_SECRET = getAuthSecret();
   process.env.DESKTOP_MODE = 'true';
   process.env.AUTH_TRUST_HOST = 'true';
 
