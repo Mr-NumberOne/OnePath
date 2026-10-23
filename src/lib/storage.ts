@@ -30,3 +30,17 @@ export async function setStoredData(key: string, value: string): Promise<void> {
     localStorage.setItem(key, value);
   }
 }
+
+export async function removeStoredData(key: string): Promise<void> {
+  if (typeof window !== 'undefined' && (window as any).desktopAPI) {
+    try {
+      await (window as any).desktopAPI.deleteStoreValue(key);
+    } catch (e) {
+      console.error('Failed to delete from desktop storage', e);
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(key);
+  }
+}

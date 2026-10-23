@@ -26,6 +26,8 @@ import { useState } from "react";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { backupToDrive } from "@/lib/gdrive";
+import { buildBackupPayload, PROGRESS_KEY } from "@/lib/backup";
+import { removeStoredData } from "@/lib/storage";
 import { toast } from "sonner";
 import { AlertTriangle, Cloud } from "lucide-react";
 
@@ -39,7 +41,7 @@ export default function UserButton() {
 
   const confirmLogout = async () => {
     // Clear local progress
-    localStorage.removeItem("erp-roadmap-progress-v2");
+    await removeStoredData(PROGRESS_KEY);
     sessionStorage.removeItem("hasCheckedBackup");
     
     // Clear roadmaps from the server
@@ -68,18 +70,7 @@ export default function UserButton() {
 
     try {
       setIsBackingUp(true);
-      const progressDataString = localStorage.getItem("erp-roadmap-progress-v2");
-      const parsedProgress = progressDataString ? JSON.parse(progressDataString) : {};
-      
-      const backupPayload = {
-        progress: parsedProgress,
-        roadmaps: roadmaps,
-        settings: {
-          theme: localStorage.getItem("theme") || "system",
-          language: localStorage.getItem("roadmap-language") || "en"
-        }
-      };
-
+      const backupPayload = await buildBackupPayload(roadmaps);
       await backupToDrive(token, backupPayload);
       toast.success(language === "ar" ? "تم النسخ الاحتياطي بنجاح!" : "Backup successful!");
       await confirmLogout();

@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { useState } from "react";
 import { toast } from "sonner";
 import { backupToDrive, restoreFromDrive } from "@/lib/gdrive";
+import { applyBackup, buildBackupPayload } from "@/lib/backup";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 
 export default function ProfilePage() {
@@ -31,18 +32,7 @@ export default function ProfilePage() {
 
     try {
       setIsSyncing(true);
-      const progressDataString = localStorage.getItem("erp-roadmap-progress-v2");
-      const parsedProgress = progressDataString ? JSON.parse(progressDataString) : {};
-      
-      const backupPayload = {
-        progress: parsedProgress,
-        roadmaps: roadmaps,
-        settings: {
-          theme: localStorage.getItem("theme") || "system",
-          language: localStorage.getItem("roadmap-language") || "en"
-        }
-      };
-
+      const backupPayload = await buildBackupPayload(roadmaps);
       await backupToDrive(token, backupPayload);
       toast.success(language === "ar" ? "تم النسخ الاحتياطي بنجاح!" : "Backup successful!");
     } catch (e: any) {
@@ -69,25 +59,7 @@ export default function ProfilePage() {
       setIsSyncing(true);
       const data = await restoreFromDrive(token);
       if (data) {
-        if (data.progress && data.roadmaps) {
-          // New format: contains progress, roadmaps, and settings
-          localStorage.setItem("erp-roadmap-progress-v2", JSON.stringify(data.progress));
-          
-          if (data.settings) {
-            if (data.settings.theme) localStorage.setItem("theme", data.settings.theme);
-            if (data.settings.language) localStorage.setItem("roadmap-language", data.settings.language);
-          }
-
-          await fetch("/api/roadmaps", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data.roadmaps)
-          });
-        } else {
-          // Old format fallback: only contains progress
-          localStorage.setItem("erp-roadmap-progress-v2", JSON.stringify(data));
-        }
-
+        await applyBackup(data);
         toast.success(language === "ar" ? "تم الاستعادة بنجاح!" : "Restore successful!");
         window.location.reload();
       }

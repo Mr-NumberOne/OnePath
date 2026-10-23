@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { checkBackupExists, restoreFromDrive } from "@/lib/gdrive";
+import { applyBackup } from "@/lib/backup";
 import { useSettings } from "@/contexts/SettingsContext";
 import { toast } from "sonner";
 import {
@@ -65,22 +66,7 @@ export function CloudRestorePrompt() {
       setIsRestoring(true);
       const data = await restoreFromDrive(token);
       if (data) {
-        if (data.progress && data.roadmaps) {
-          localStorage.setItem("erp-roadmap-progress-v2", JSON.stringify(data.progress));
-          
-          if (data.settings) {
-            if (data.settings.theme) localStorage.setItem("theme", data.settings.theme);
-            if (data.settings.language) localStorage.setItem("roadmap-language", data.settings.language);
-          }
-
-          await fetch("/api/roadmaps", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data.roadmaps)
-          });
-        } else {
-          localStorage.setItem("erp-roadmap-progress-v2", JSON.stringify(data));
-        }
+        await applyBackup(data);
         toast.success(language === "ar" ? "تم الاستعادة بنجاح!" : "Restore successful!");
         window.location.reload();
       }
