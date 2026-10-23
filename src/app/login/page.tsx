@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const { language } = useSettings();
@@ -29,14 +30,21 @@ export default function LoginPage() {
         });
 
         if (res?.ok && !res.error) {
+          if (result.rememberedLogin === false) {
+            toast.warning(language === "ar"
+              ? "تعذر حفظ تسجيل الدخول بأمان على هذا الجهاز، لذا ستحتاج إلى تسجيل الدخول مرة أخرى في المرة القادمة."
+              : "Your sign-in couldn't be stored securely on this device, so you'll need to sign in again next time.");
+          }
           router.push("/");
           router.refresh();
         } else {
           console.error("NextAuth signin failed", res?.error);
+          toast.error(language === "ar" ? "فشل تسجيل الدخول. حاول مرة أخرى." : "Sign-in failed. Please try again.");
           setIsLoading(false);
         }
       } catch (e) {
         console.error("Desktop auth failed:", e);
+        toast.error(language === "ar" ? "فشل تسجيل الدخول. حاول مرة أخرى." : "Sign-in failed. Please try again.");
         setIsLoading(false);
       }
     } else {

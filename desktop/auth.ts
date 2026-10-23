@@ -42,13 +42,29 @@ export async function clearAuthTokens() {
   }
 }
 
-async function storeRefreshToken(token: string) {
-  if (safeStorage.isEncryptionAvailable()) {
-    const encrypted = safeStorage.encryptString(token);
-    fs.writeFileSync(getTokensPath(), encrypted);
-  } else {
-    console.warn('safeStorage not available, skipping refresh token storage');
+// Returns false when the token could not be saved, so the caller can tell
+// the user they will have to sign in again next time. The token is never
+// written unencrypted.
+async function storeRefreshToken(token: string): Promise<boolean> {
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn('safeStorage not available, refresh token not stored');
+    return false;
   }
+  try {
+    const encrypted = safeStorage.encryptString(token);
+    fs.writeFileSync(getTokensPath(), encrypted, { mode: 0o600 });
+    return true;
+  } catch (e) {
+    console.error('Failed to store refresh token', e);
+    return false;
+  }
+}
+
+export interface DesktopAuthResult {
+  access_token: string;
+  user: any;
+  // False when the sign-in could not be remembered for the next launch
+  rememberedLogin: boolean;
 }
 
 async function getStoredRefreshToken(): Promise<string | null> {
@@ -66,7 +82,7 @@ async function getStoredRefreshToken(): Promise<string | null> {
   return null;
 }
 
-export async function refreshAccessToken(): Promise<{ access_token: string, user: any } | null> {
+export async function refreshAccessToken(): Promise<DesktopAuthResult | null> {
   const refreshToken = await getStoredRefreshToken();
   if (!refreshToken) return null;
 
@@ -87,12 +103,11 @@ export async function refreshAccessToken(): Promise<{ access_token: string, user
     }
 
     const data = await response.json();
-    if (data.refresh_token) {
-      await storeRefreshToken(data.refresh_token);
-    }
+    // Google usually keeps the existing refresh token, which is already stored
+    const rememberedLogin = data.refresh_token ? await storeRefreshToken(data.refresh_token) : true;
 
     const user = await fetchUserInfo(data.access_token);
-    return { access_token: data.access_token, user };
+    return { access_token: data.access_token, user, rememberedLogin };
   } catch (e) {
     console.error(e);
     await clearAuthTokens(); // Token likely revoked or invalid
@@ -118,7 +133,7 @@ async function fetchUserInfo(accessToken: string) {
   };
 }
 
-export async function startGoogleAuthFlow(): Promise<{ access_token: string, user: any }> {
+export async function startGoogleAuthFlow(): Promise<DesktopAuthResult> {
   if (!CLIENT_ID) {
     throw new Error("AUTH_GOOGLE_DESKTOP_ID is not configured.");
   }
@@ -183,12 +198,12 @@ export async function startGoogleAuthFlow(): Promise<{ access_token: string, use
 
           const tokenData = await tokenRes.json();
           
-          if (tokenData.refresh_token) {
-            await storeRefreshToken(tokenData.refresh_token);
-          }
+          const rememberedLogin = tokenData.refresh_token
+            ? await storeRefreshToken(tokenData.refresh_token)
+            : false;
 
           const user = await fetchUserInfo(tokenData.access_token);
-          resolve({ access_token: tokenData.access_token, user });
+          resolve({ access_token: tokenData.access_token, user, rememberedLogin });
         }
       } catch (e) {
         server.close();
