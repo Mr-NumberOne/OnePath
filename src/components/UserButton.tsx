@@ -29,6 +29,7 @@ import { backupToDrive } from "@/lib/gdrive";
 import { buildBackupPayload, PROGRESS_KEY } from "@/lib/backup";
 import { removeStoredData } from "@/lib/storage";
 import { saveRoadmaps } from "@/lib/roadmapApi";
+import { getDriveAccessToken } from "@/lib/driveToken";
 import { toast } from "sonner";
 import { AlertTriangle, Cloud } from "lucide-react";
 
@@ -62,8 +63,7 @@ export default function UserButton() {
   };
 
   const handleBackupAndLogout = async () => {
-    // @ts-ignore
-    const token = session?.accessToken;
+    const token = await getDriveAccessToken(session);
     if (!token) {
       toast.error(language === "ar" ? "يرجى تسجيل الدخول مرة أخرى لمنح صلاحيات Google Drive." : "Please re-login to grant Google Drive permissions.");
       return;

@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { backupToDrive, restoreFromDrive } from "@/lib/gdrive";
 import { applyBackup, buildBackupPayload } from "@/lib/backup";
+import { getDriveAccessToken } from "@/lib/driveToken";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 
 export default function ProfilePage() {
@@ -23,8 +24,7 @@ export default function ProfilePage() {
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleBackup = async () => {
-    // @ts-ignore - accessToken exists due to custom next-auth config
-    const token = session?.accessToken;
+    const token = await getDriveAccessToken(session);
     if (!token) {
       toast.error(language === "ar" ? "يرجى تسجيل الدخول مرة أخرى لمنح صلاحيات Google Drive." : "Please re-login to grant Google Drive permissions.");
       return;
@@ -44,8 +44,7 @@ export default function ProfilePage() {
   };
 
   const handleRestore = async () => {
-    // @ts-ignore
-    const token = session?.accessToken;
+    const token = await getDriveAccessToken(session);
     if (!token) {
       toast.error(language === "ar" ? "يرجى تسجيل الدخول مرة أخرى لمنح صلاحيات Google Drive." : "Please re-login to grant Google Drive permissions.");
       return;

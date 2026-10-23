@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { checkBackupExists, restoreFromDrive } from "@/lib/gdrive";
 import { applyBackup } from "@/lib/backup";
+import { getDriveAccessToken } from "@/lib/driveToken";
 import { useSettings } from "@/contexts/SettingsContext";
 import { toast } from "sonner";
 import {
@@ -28,9 +29,9 @@ export function CloudRestorePrompt() {
     // Only run if user is logged in
     if (status !== "authenticated" || !session?.user) return;
     
-    // @ts-ignore
+    // Checked automatically after sign-in, so skip expired sessions rather than prompting
     const token = session.accessToken;
-    if (!token) return;
+    if (!token || session.error) return;
 
     // Check if we've already checked this session
     const hasChecked = sessionStorage.getItem("hasCheckedBackup");
@@ -58,8 +59,7 @@ export function CloudRestorePrompt() {
   }, [session, status]);
 
   const handleRestore = async () => {
-    // @ts-ignore
-    const token = session?.accessToken;
+    const token = await getDriveAccessToken(session);
     if (!token) return;
 
     try {

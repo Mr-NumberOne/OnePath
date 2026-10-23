@@ -1,9 +1,16 @@
 const FILENAME = 'ConsultantRoadmapBackup.json';
 
-// Helper to find the file ID if it exists
+// Helper to find the file ID if it exists. The drive.file scope only sees
+// files this app created; if there are several, the newest one wins.
 export async function checkBackupExists(accessToken: string): Promise<string | null> {
-  const query = encodeURIComponent(`name='${FILENAME}' and trashed=false`);
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive`, {
+  const params = new URLSearchParams({
+    q: `name='${FILENAME}' and trashed=false`,
+    spaces: 'drive',
+    orderBy: 'modifiedTime desc',
+    fields: 'files(id,modifiedTime)',
+    pageSize: '1',
+  });
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
