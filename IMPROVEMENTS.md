@@ -13,7 +13,7 @@ Status of checks at assessment time (2026-10-23):
 
 ## 0. Critical – data loss (fix before anything else)
 
-- [ ] **0.1 Logout clears the shared roadmap file (web only)** – `src/components/UserButton.tsx` (`confirmLogout`)
+- [x] **0.1 Logout clears the shared roadmap file (web only)** – closed, no change needed: the app has a single user, so the shared file is fine. – `src/components/UserButton.tsx` (`confirmLogout`)
   - By design, logout POSTs `[]` to `/api/roadmaps` and the Drive backup is restored on the next login. The logout dialog offers "Backup & Logout" and an explicit "Logout Without Backup". On desktop (one user, one data folder) this works as intended once 0.2 is fixed.
   - Web: there is one shared `custom-roadmap.json`, so one user logging out clears everyone's roadmaps, and one user's restore overwrites everyone's.
   - Fix: only needed if the web build serves more than one user — store roadmaps per user (keyed by `session.user.id`) or keep the wipe desktop-only.
@@ -26,7 +26,7 @@ Status of checks at assessment time (2026-10-23):
 
 ## 1. Security
 
-- [ ] **1.1 Restrict the `desktop` Credentials provider** – `src/auth.ts`
+- [x] **1.1 Restrict the `desktop` Credentials provider** – fixed: registered only when `DESKTOP_MODE=true` (or in `next dev`, for `npm run dev:desktop`); `authorize` now checks the token with Google's tokeninfo (audience must be the desktop client ID) and takes the user from Google's userinfo instead of the client. Forged sign-ins verified rejected in both modes; real desktop login tested with `npm run dev:desktop`.
   - `authorize` accepts any `accessToken` + `id` without verifying with Google, and the provider is registered in the web build too → anyone can mint a session on a deployed site. Combined with 0.1/1.2, that means anyone can wipe the data.
   - Fix: register it only when `DESKTOP_MODE` is set; better, verify the token against Google's userinfo endpoint inside `authorize`.
 
@@ -34,7 +34,7 @@ Status of checks at assessment time (2026-10-23):
   - `GET` has no auth check (the proxy excludes `/api`).
   - `POST` only checks `if (!session)`, so any Google user is effectively an admin and can overwrite the single global file.
   - Body is validated only as "array of ≤ 500 items".
-  - Fix: add an admin allowlist (or per-user storage), validate the body with a schema (e.g. zod), cap the payload size in bytes.
+  - Fix: the app is single-user, so per-user storage isn't needed. Allow only the owner's email (e.g. an `OWNER_EMAIL` env var) on both `GET` and `POST`, validate the body with a schema (e.g. zod), cap the payload size in bytes. This matters only if the web build is ever reachable by others; Google sign-in alone lets any Google account in.
 
 - [ ] **1.3 `authSecret` exposed to the renderer** – `desktop/main.ts`, `desktop/storage.ts`, `desktop/preload.ts`
   - The Auth.js signing secret is stored in `preferences.json`, the same store exposed via `store-get`/`store-set`/`store-delete` IPC. Any script in the page can read it (and forge session cookies) or overwrite it.
@@ -102,7 +102,7 @@ Status of checks at assessment time (2026-10-23):
 
 ## Suggested order
 
-1. Stop the data loss: route backup/restore through `storage.ts` (0.2); decide whether the web build is multi-user (0.1).
+1. ~~Stop the data loss (0.1, 0.2)~~ – done.
 2. Close the auth holes: desktop-only Credentials provider, admin check on `POST /api/roadmaps` (1.1, 1.2).
 3. Upgrade `next` / `next-auth`, move `shadcn` to devDependencies, replace `xlsx` (1.6).
 4. Take `authSecret` out of the IPC store and the client secret out of the installer (1.3, 1.4).

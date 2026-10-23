@@ -22,13 +22,10 @@ export default function LoginPage() {
       try {
         // @ts-ignore
         const result = await window.desktopAPI.startGoogleAuth();
-        const res = await signIn("desktop", { 
+        // The server verifies the token with Google and reads the user profile itself
+        const res = await signIn("desktop", {
           redirect: false,
           accessToken: result.access_token,
-          id: result.user.id,
-          name: result.user.name,
-          email: result.user.email,
-          image: result.user.image
         });
 
         if (res?.ok && !res.error) {
