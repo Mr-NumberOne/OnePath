@@ -9,6 +9,7 @@ const RENDERER_KEYS = new Set([
   'erp-roadmap-progress-v2',
   'erp-roadmap-progress', // legacy progress, read once for migration
   'roadmap-language',
+  'onepath-builder-drafts', // unsaved roadmap editor drafts
 ]);
 
 export const getStore = () => {

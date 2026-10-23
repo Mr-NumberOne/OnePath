@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { Phase, RoadmapConfig } from "@/types";
 import { generateId } from "@/lib/utils";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import UserButton from "@/components/UserButton";
 import { useSettings } from "@/contexts/SettingsContext";
 import Link from "next/link";
-import { ArrowLeft, Plus, Save, Download } from "lucide-react";
+import { ArrowLeft, Plus, Save, Download, Undo2, Redo2, History } from "lucide-react";
 import { useParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +19,10 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { exportRoadmapToExcel } from "@/lib/xlsxParser";
 import { saveRoadmaps } from "@/lib/roadmapApi";
+import { useHistoryState } from "@/hooks/useHistoryState";
+import { BuilderDraft, clearDraft, isSameRoadmap, loadDraft, saveDraft } from "@/lib/builderDraft";
+
+const parseRadarCategories = (value: string) => value.split("-").map((s) => s.trim()).filter((s) => s !== "");
 
 export default function RoadmapEditor() {
   const params = useParams();
@@ -26,10 +30,20 @@ export default function RoadmapEditor() {
   const { roadmaps, refreshRoadmaps } = useRoadmaps();
   const { language } = useSettings();
   
-  const [draftRoadmap, setDraftRoadmap] = useState<RoadmapConfig | null>(null);
+  // The draft being edited, with undo/redo
+  const history = useHistoryState<RoadmapConfig | null>(null);
+  const draftRoadmap = history.value;
+  const setDraftRoadmap = history.set;
+  const { undo, redo } = history;
+
   const [isSaving, setIsSaving] = useState(false);
+  // What the user typed in the radar box, kept so "Tech - " can be typed
   const [radarCatsInputEn, setRadarCatsInputEn] = useState("");
   const [radarCatsInputAr, setRadarCatsInputAr] = useState("");
+
+  // Unsaved edits from an earlier visit, offered back once
+  const [pendingDraft, setPendingDraft] = useState<BuilderDraft | null>(null);
+  const [draftChecked, setDraftChecked] = useState(false);
 
   // Start a fresh draft whenever the stored roadmap changes (first load, after a save).
   // Done during render, as React recommends, rather than in an effect.
@@ -37,10 +51,51 @@ export default function RoadmapEditor() {
   const [loadedFrom, setLoadedFrom] = useState<RoadmapConfig | null>(null);
   if (existing && existing !== loadedFrom) {
     setLoadedFrom(existing);
-    setDraftRoadmap(existing);
-    setRadarCatsInputEn(existing.radarCategories?.en?.join(" - ") || "");
-    setRadarCatsInputAr(existing.radarCategories?.ar?.join(" - ") || "");
+    // After a save the stored roadmap equals the draft; keep the undo history then
+    if (!draftRoadmap || !isSameRoadmap(existing, draftRoadmap)) {
+      history.reset(existing);
+    }
   }
+
+  // Look for unsaved edits from a previous visit
+  useEffect(() => {
+    if (!existing || draftChecked) return;
+    let active = true;
+    loadDraft(id).then((draft) => {
+      if (!active) return;
+      if (draft && !isSameRoadmap(draft.roadmap, existing)) setPendingDraft(draft);
+      setDraftChecked(true);
+    });
+    return () => { active = false; };
+  }, [id, existing, draftChecked]);
+
+  // Keep unsaved edits as a local draft. Paused while an older draft is
+  // waiting for a decision, so it can't be overwritten.
+  useEffect(() => {
+    if (!draftChecked || pendingDraft || !draftRoadmap || !existing) return;
+    const timer = setTimeout(() => {
+      const write = isSameRoadmap(draftRoadmap, existing) ? clearDraft(id) : saveDraft(draftRoadmap);
+      write.catch((e) => console.error("Failed to store builder draft", e));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [id, draftRoadmap, existing, draftChecked, pendingDraft]);
+
+  // Ctrl/Cmd+Z to undo, Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z to redo
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undo, redo]);
 
   if (!draftRoadmap) {
     return <div className="p-12 text-center">Loading...</div>;
@@ -61,8 +116,8 @@ export default function RoadmapEditor() {
       if (!prev) return prev;
       const currentEn = prev.radarCategories?.en || [];
       const currentAr = prev.radarCategories?.ar || [];
-      const newArray = value.split("-").map(s => s.trim()).filter(s => s !== "");
-      
+      const newArray = parseRadarCategories(value);
+
       return {
         ...prev,
         radarCategories: {
@@ -139,6 +194,7 @@ export default function RoadmapEditor() {
       const updatedRoadmaps = roadmaps.map((r) => r.id === draftRoadmap.id ? draftRoadmap : r);
       
       await saveRoadmaps(updatedRoadmaps);
+      await clearDraft(draftRoadmap.id);
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم حفظ الخارطة بنجاح!" : "Roadmap saved successfully!");
     } catch (e) {
@@ -149,8 +205,28 @@ export default function RoadmapEditor() {
     }
   };
 
+  const handleRestoreDraft = () => {
+    if (!pendingDraft) return;
+    // Undoable, in case the stored version was the one to keep
+    setDraftRoadmap(() => pendingDraft.roadmap);
+    setPendingDraft(null);
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft(id).catch((e) => console.error("Failed to discard builder draft", e));
+    setPendingDraft(null);
+  };
+
   const lang = language as "en" | "ar";
   const currentPhases = draftRoadmap.phases[lang] || [];
+
+  // Show what the user typed while it still matches the draft; after undo,
+  // redo or a restore, show the draft's categories instead
+  const draftRadarCategories = draftRoadmap.radarCategories?.[lang] || [];
+  const typedRadar = lang === "ar" ? radarCatsInputAr : radarCatsInputEn;
+  const radarInputValue = JSON.stringify(parseRadarCategories(typedRadar)) === JSON.stringify(draftRadarCategories)
+    ? typedRadar
+    : draftRadarCategories.join(" - ");
 
   return (
     <main className="flex h-screen flex-col bg-background font-sans">
@@ -168,6 +244,28 @@ export default function RoadmapEditor() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={undo}
+              disabled={!history.canUndo}
+              aria-label={language === "ar" ? "تراجع" : "Undo"}
+              title={language === "ar" ? "تراجع (Ctrl+Z)" : "Undo (Ctrl+Z)"}
+            >
+              <Undo2 className="w-4 h-4 rtl:-scale-x-100" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={redo}
+              disabled={!history.canRedo}
+              aria-label={language === "ar" ? "إعادة" : "Redo"}
+              title={language === "ar" ? "إعادة (Ctrl+Y)" : "Redo (Ctrl+Y)"}
+            >
+              <Redo2 className="w-4 h-4 rtl:-scale-x-100" />
+            </Button>
+          </div>
           <Button variant="outline" onClick={() => exportRoadmapToExcel(draftRoadmap, language as "en"|"ar")} disabled={isSaving}>
             <Download className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
             {language === "ar" ? "تصدير" : "Export"}
@@ -179,6 +277,23 @@ export default function RoadmapEditor() {
           <UserButton />
         </div>
       </header>
+
+      {pendingDraft && (
+        <div role="status" className="flex-none flex flex-wrap items-center gap-3 px-6 py-3 border-b bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <History className="w-4 h-4 shrink-0" />
+          <p className="text-sm flex-1 min-w-[200px]">
+            {language === "ar"
+              ? `لديك تعديلات غير محفوظة على هذه الخارطة من ${new Date(pendingDraft.savedAt).toLocaleString("ar")}.`
+              : `You have unsaved changes to this roadmap from ${new Date(pendingDraft.savedAt).toLocaleString("en")}.`}
+          </p>
+          <Button size="sm" onClick={handleRestoreDraft}>
+            {language === "ar" ? "استعادة التعديلات" : "Restore changes"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleDiscardDraft}>
+            {language === "ar" ? "تجاهل" : "Discard"}
+          </Button>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -202,8 +317,8 @@ export default function RoadmapEditor() {
             </div>
             <div className="space-y-2 pt-2 border-t">
               <Label>{language === "ar" ? "فئات المهارات (مفصولة بشرطة)" : "Radar Skill Categories (hyphen separated)"}</Label>
-              <Input 
-                value={language === "ar" ? radarCatsInputAr : radarCatsInputEn} 
+              <Input
+                value={radarInputValue}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (language === "ar") setRadarCatsInputAr(val);
