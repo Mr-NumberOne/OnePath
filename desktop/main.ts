@@ -84,18 +84,23 @@ async function createWindow() {
       return { action: 'deny' };
     });
 
+    // The window only ever shows the local app. Google sign-in runs in the
+    // system browser (see auth.ts), so every other link opens externally.
+    // Auth.js may build redirect URLs with "localhost" instead of 127.0.0.1
+    const appOrigins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      const parsedUrl = new URL(url);
-      // If it's trying to navigate away from the local server to a remote address
-      if (parsedUrl.origin !== `http://127.0.0.1:${port}`) {
-        // Exception: Google OAuth flow might navigate to accounts.google.com?
-        // Wait, OAuth usually redirects the whole window for Google, and then redirects back.
-        // We must allow navigation to trusted OAuth providers if necessary, OR we use the system browser.
-        // If Auth.js is used, it navigates the window to accounts.google.com.
-        // So we shouldn't strictly block all navigation, but we should block file:, javascript:, etc.
-        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-            event.preventDefault();
-        }
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        event.preventDefault();
+        return;
+      }
+      if (appOrigins.has(parsedUrl.origin)) return;
+
+      event.preventDefault();
+      if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+        shell.openExternal(url);
       }
     });
 
