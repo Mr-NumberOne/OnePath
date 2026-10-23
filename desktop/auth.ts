@@ -8,6 +8,8 @@ import fs from 'fs';
 const GOOGLE_OAUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
+// How long to wait for the user to finish signing in in the browser
+const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
 
 // The Desktop Client ID and Secret are generated into env.ts during build
 import { CLIENT_ID, CLIENT_SECRET } from './env';
@@ -159,60 +161,95 @@ export async function startGoogleAuthFlow(): Promise<DesktopAuthResult> {
   authUrl.searchParams.set('code_challenge_method', 'S256');
   authUrl.searchParams.set('access_type', 'offline');
   authUrl.searchParams.set('prompt', 'consent');
+  // Ties the callback to this sign-in attempt
+  const state = crypto.randomBytes(16).toString('base64url');
+  authUrl.searchParams.set('state', state);
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error: Error | null, result?: DesktopAuthResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      server.close();
+      if (error) reject(error);
+      else resolve(result!);
+    };
+
+    // Give up if the user never completes the browser sign-in
+    const timeout = setTimeout(() => {
+      finish(new Error('Google sign-in timed out. Please try again.'));
+    }, AUTH_TIMEOUT_MS);
+
     const server = http.createServer(async (req, res) => {
+      const url = new URL(req.url || '', `http://127.0.0.1:${port}`);
+      const code = url.searchParams.get('code');
+      const error = url.searchParams.get('error');
+
+      // Only the OAuth callback itself is handled; browsers also ask for favicons etc.
+      if (url.pathname !== '/' || (!code && !error)) {
+        res.writeHead(404).end();
+        return;
+      }
+      if (url.searchParams.get('state') !== state) {
+        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' })
+          .end(callbackPage('Authentication Failed', 'This sign-in link is not valid. Please try again from the app.'));
+        return;
+      }
+
+      if (error) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+          .end(callbackPage('Authentication Failed', error));
+        finish(new Error(`Google Auth Error: ${error}`));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+        .end(callbackPage('Authentication Successful!', 'You can close this tab and return to the application.'));
+
       try {
-        const url = new URL(req.url || '', `http://127.0.0.1:${port}`);
-        const code = url.searchParams.get('code');
-        const error = url.searchParams.get('error');
+        // Exchange code
+        const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: CLIENT_ID,
+            client_secret: CLIENT_SECRET,
+            redirect_uri: redirectUri,
+            grant_type: 'authorization_code',
+            code: code!,
+            code_verifier: verifier
+          })
+        });
 
-        if (error) {
-          res.end(`<h1>Authentication Failed</h1><p>${error}</p><script>window.close()</script>`);
-          server.close();
-          reject(new Error(`Google Auth Error: ${error}`));
-          return;
+        if (!tokenRes.ok) {
+          throw new Error(`Token exchange failed: ${await tokenRes.text()}`);
         }
 
-        if (code) {
-          res.end(`<h1>Authentication Successful!</h1><p>You can close this tab and return to the application.</p><script>window.close()</script>`);
-          server.close();
-          
-          // Exchange code
-          const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              client_id: CLIENT_ID,
-              client_secret: CLIENT_SECRET,
-              redirect_uri: redirectUri,
-              grant_type: 'authorization_code',
-              code: code,
-              code_verifier: verifier
-            })
-          });
+        const tokenData = await tokenRes.json();
 
-          if (!tokenRes.ok) {
-            throw new Error(`Token exchange failed: ${await tokenRes.text()}`);
-          }
+        const rememberedLogin = tokenData.refresh_token
+          ? await storeRefreshToken(tokenData.refresh_token)
+          : false;
 
-          const tokenData = await tokenRes.json();
-          
-          const rememberedLogin = tokenData.refresh_token
-            ? await storeRefreshToken(tokenData.refresh_token)
-            : false;
-
-          const user = await fetchUserInfo(tokenData.access_token);
-          resolve({ access_token: tokenData.access_token, user, rememberedLogin });
-        }
+        const user = await fetchUserInfo(tokenData.access_token);
+        finish(null, { access_token: tokenData.access_token, user, rememberedLogin });
       } catch (e) {
-        server.close();
-        reject(e);
+        finish(e instanceof Error ? e : new Error(String(e)));
       }
     });
 
+    server.on('error', (e) => finish(e));
     server.listen(port, '127.0.0.1', () => {
       shell.openExternal(authUrl.toString());
     });
   });
+}
+
+function escapeHtml(text: string) {
+  return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+function callbackPage(title: string, message: string) {
+  return `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><script>window.close()</script>`;
 }
