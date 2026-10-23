@@ -28,6 +28,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { backupToDrive } from "@/lib/gdrive";
 import { buildBackupPayload, PROGRESS_KEY } from "@/lib/backup";
 import { removeStoredData } from "@/lib/storage";
+import { saveRoadmaps } from "@/lib/roadmapApi";
 import { toast } from "sonner";
 import { AlertTriangle, Cloud } from "lucide-react";
 
@@ -44,12 +45,12 @@ export default function UserButton() {
     await removeStoredData(PROGRESS_KEY);
     sessionStorage.removeItem("hasCheckedBackup");
     
-    // Clear roadmaps from the server
-    await fetch("/api/roadmaps", {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify([])
-    });
+    // Clear roadmaps from the server; don't block logout if that fails
+    try {
+      await saveRoadmaps([]);
+    } catch (e) {
+      console.error("Failed to clear roadmaps on logout", e);
+    }
 
     // @ts-ignore
     if (typeof window !== 'undefined' && window.desktopAPI?.logout) {

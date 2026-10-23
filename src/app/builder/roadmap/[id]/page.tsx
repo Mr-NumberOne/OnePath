@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { exportRoadmapToExcel } from "@/lib/xlsxParser";
+import { saveRoadmaps } from "@/lib/roadmapApi";
 
 export default function RoadmapEditor() {
   const params = useParams();
@@ -135,18 +136,9 @@ export default function RoadmapEditor() {
     try {
       const updatedRoadmaps = roadmaps.map((r) => r.id === draftRoadmap.id ? draftRoadmap : r);
       
-      const saveRes = await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
-
-      if (saveRes.ok) {
-        await refreshRoadmaps();
-        toast.success(language === "ar" ? "تم حفظ الخارطة بنجاح!" : "Roadmap saved successfully!");
-      } else {
-        toast.error(language === "ar" ? "فشل حفظ الخارطة." : "Failed to save roadmap.");
-      }
+      await saveRoadmaps(updatedRoadmaps);
+      await refreshRoadmaps();
+      toast.success(language === "ar" ? "تم حفظ الخارطة بنجاح!" : "Roadmap saved successfully!");
     } catch (e) {
       console.error(e);
       toast.error(language === "ar" ? "حدث خطأ أثناء الحفظ." : "Error saving roadmap.");

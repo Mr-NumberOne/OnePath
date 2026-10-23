@@ -1,5 +1,6 @@
 import { RoadmapConfig, UserProgressMap } from '@/types';
 import { getStoredData, setStoredData } from '@/lib/storage';
+import { saveRoadmaps } from '@/lib/roadmapApi';
 
 export const PROGRESS_KEY = 'erp-roadmap-progress-v2';
 export const LANGUAGE_KEY = 'roadmap-language';
@@ -33,19 +34,15 @@ export async function buildBackupPayload(roadmaps: RoadmapConfig[]): Promise<Bac
 export async function applyBackup(data: Partial<BackupPayload> | UserProgressMap): Promise<void> {
   const backup = data as Partial<BackupPayload>;
   if (backup.progress && backup.roadmaps) {
-    // New format: contains progress, roadmaps, and settings
+    // New format: contains progress, roadmaps, and settings.
+    // Roadmaps go first: if the server rejects them, nothing local has changed yet.
+    await saveRoadmaps(backup.roadmaps);
     await setStoredData(PROGRESS_KEY, JSON.stringify(backup.progress));
 
     if (backup.settings) {
       if (backup.settings.theme) localStorage.setItem(THEME_KEY, backup.settings.theme);
       if (backup.settings.language) await setStoredData(LANGUAGE_KEY, backup.settings.language);
     }
-
-    await fetch('/api/roadmaps', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(backup.roadmaps),
-    });
   } else {
     // Old format fallback: only contains progress
     await setStoredData(PROGRESS_KEY, JSON.stringify(data));

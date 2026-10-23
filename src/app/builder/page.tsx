@@ -11,6 +11,7 @@ import { ArrowLeft, Plus, Edit, Trash2, Power, PowerOff, Download, Upload } from
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { downloadExcelTemplate, parseExcelFile, exportRoadmapToExcel } from "@/lib/xlsxParser";
+import { saveRoadmaps } from "@/lib/roadmapApi";
 import { useRef } from "react";
 import {
   Dialog,
@@ -37,11 +38,7 @@ export default function AdminDashboard() {
       const newRoadmap = await parseExcelFile(file);
       const updatedRoadmaps = [...roadmaps, newRoadmap];
 
-      await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
+      await saveRoadmaps(updatedRoadmaps);
 
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم استيراد الخارطة بنجاح" : "Roadmap imported successfully!");
@@ -69,11 +66,7 @@ export default function AdminDashboard() {
 
       const updatedRoadmaps = [...roadmaps, newRoadmap];
 
-      await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
+      await saveRoadmaps(updatedRoadmaps);
 
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم إنشاء الخارطة بنجاح" : "Roadmap created successfully!");
@@ -91,11 +84,7 @@ export default function AdminDashboard() {
         r.id === roadmap.id ? { ...r, isEnabled: !r.isEnabled } : r
       );
 
-      await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
+      await saveRoadmaps(updatedRoadmaps);
 
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم تحديث حالة الخارطة" : "Roadmap status updated!");
@@ -110,11 +99,7 @@ export default function AdminDashboard() {
     try {
       const updatedRoadmaps = roadmaps.filter((r) => r.id !== roadmapToDelete);
 
-      await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
+      await saveRoadmaps(updatedRoadmaps);
 
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم حذف الخارطة بنجاح" : "Roadmap deleted successfully!");
