@@ -10,7 +10,7 @@ Findings from a project assessment (2026-10-23), with what has been done since. 
 | `npm run typecheck` (web + desktop) | passes | passes |
 | `npm run lint` | 59 problems (39 errors, 20 warnings)¹ | 0 errors, 6 warnings (`<img>` tags) |
 | `npm audit --omit=dev` | 27 (4 critical, 18 high, 5 moderate) | 0 |
-| Tests | none | 38 Vitest tests (`npm test`) |
+| Tests | none | 57 Vitest tests (`npm test`) |
 | CI | none | GitHub Actions: lint, typecheck, test, build, audit |
 
 ¹ The first report's 14,620 came from linting generated folders.
@@ -23,15 +23,18 @@ Findings from a project assessment (2026-10-23), with what has been done since. 
 - English/Arabic phases stay as separate lists, kept in sync by ID.
 - Builder: undo/redo plus a local draft (still saved manually).
 - Desktop distribution: auto-update from GitHub Releases only (no signing certificate yet, no crash reporting).
-- `CLAUDE.md`/`AGENTS.md` stay tracked; `plan.md` moves to `docs/`.
+- `plan.md` moves to `docs/`. (`CLAUDE.md`/`AGENTS.md` turned out not to be tracked, see 3.5.)
 
 ### Not verified by hand yet
 
+Checked automatically: `npm run pack:windows` builds the installer (~104 MB) plus `latest.yml` and the `.blockmap`; the packaged app (`dist-electron/win-unpacked`, run with a temporary profile) starts its server, creates `auth-secret.enc` (the secret is not in `preferences.json`) and runs the update check, which finds no release yet. The builder, JSON import, accessibility, restore preview (with stubbed Drive responses) and lazy loading were tried in the browser against a copy of the data.
+
 Run these in the desktop app before merging:
-- Backup & Logout, then log in and restore: progress and language come back (0.2).
+- Backup & Logout, then log in and restore: progress and language come back, and the restore preview shows your real backup (0.2, 4.4).
 - Google sign-in still works after the callback hardening (2.2) and the Next/Auth.js upgrade (1.6).
 - A web sign-in older than an hour can still back up to Drive (2.7; refresh path only tested with an invalid token).
-- `npm run pack:windows` installer starts (2.1 was tested against the standalone server, not the installer).
+- Running the installer itself (NSIS), not just the unpacked app.
+- Auto-update end to end: publish a release with a higher version (see README) and check that an older install offers the update (3.11).
 
 ---
 
@@ -68,26 +71,24 @@ Run these in the desktop app before merging:
 - [x] **3.2 Remove `any` / `@ts-ignore`** – `window.desktopAPI` and session/JWT fields are typed; the Excel parser reads typed rows.
 - [x] **3.3 Add tests** – Vitest 4 (Vitest 5 needs `@types/node` 22+): API route, Excel parser, backup, sync and schema. Progress logic in `ProgressContext` is still untested (it lives inside the React provider).
 - [x] **3.4 Add CI** – `.github/workflows/ci.yml`.
-- [ ] **3.5 Resolve `.gitignore` conflict** – it ignores `CLAUDE.md`, `AGENTS.md`, `.gemini/`, yet `CLAUDE.md`/`AGENTS.md` are tracked.
+- [x] **3.5 `.gitignore` conflict** – closed, no change: the original finding was wrong. `CLAUDE.md` and `AGENTS.md` were never tracked, so there is no conflict. They stay ignored; remove them from `.gitignore` and commit them only if you want them in the public repo.
 - [x] **3.6 Fix docs** – README now lists Next.js 16, Node 20.9+, the desktop/test tooling, test and CI commands, says every page needs sign-in, and no longer calls the Drive backup "encrypted" (it is plain JSON in the user's Drive).
-- [ ] **3.7 Move `plan.md`** – leftover AI prompt at the repo root; move to `docs/`.
+- [x] **3.7 Move `plan.md`** – now `docs/electron-migration-plan.md`.
 - [x] **3.8 Dependency hygiene** – removed `framer-motion`, `next-mdx-remote`, `date-fns`; `@types/dagre` is a devDependency.
-- [ ] **3.9 Drop unused images from the installer** – `public/banner.png` + `banner2.png` (~15 MB) are only used by the README.
-- [ ] **3.10 Move electron-builder config** out of `package.json` into `electron-builder.yml`.
-- [ ] **3.11 Desktop distribution** – auto-update from GitHub Releases (decision: no signing or crash reporting for now).
+- [x] **3.9 Drop unused images from the installer** – banners moved to `docs/images/` (README updated); unused starter SVGs removed from `public/`.
+- [x] **3.10 Move electron-builder config** – now `electron-builder.yml`, with comments; the parsed config was identical.
+- [x] **3.11 Desktop distribution** – `electron-updater` checks GitHub Releases on start and every 6 hours and offers a restart (`desktop/updater.ts`); the main process is bundled with esbuild so the updater ships inside the app; `pack:windows` never publishes. README explains how to publish a release. No signing or crash reporting, by decision.
 
 ## 4. Product and UX
 
-- [ ] **4.1 Builder undo/redo + local draft** – decision: no autosave to the server.
-- [ ] **4.2 Single-roadmap JSON export/import** alongside Excel (Excel round-trip is lossy).
-- [ ] **4.3 Accessibility** – keyboard navigation and screen-reader labels for React Flow nodes, especially in RTL.
-- [ ] **4.4 Safer Drive restore** – show timestamps/diff before `CloudRestorePrompt` overwrites local progress.
-- [ ] **4.5 Bundle size** – dynamic-import `xlsx` and the radar chart (`recharts`).
+- [x] **4.1 Builder undo/redo + local draft** – undo/redo buttons and Ctrl+Z / Ctrl+Y (100 steps, typing merged into one step, kept across saves); unsaved edits stored per roadmap and offered back on the next visit (`src/hooks/useHistoryState.ts`, `src/lib/builderDraft.ts`). Saving stays manual.
+- [x] **4.2 Single-roadmap JSON export/import** – "Export to JSON" on each roadmap card; Import accepts `.json`, checks it against the schema, and gives a new ID if it clashes (`src/lib/roadmapJson.ts`).
+- [x] **4.3 Accessibility** – phases have spoken labels in the current language (status, locking prerequisites, hours), open with Enter, show a focus ring; React Flow hints are translated to Arabic; Backspace no longer deletes nodes from the viewer.
+- [x] **4.4 Safer Drive restore** – `RestoreDialog` downloads the backup first and compares it with this device (date, roadmaps, completed phases/steps) before restoring; used by the login prompt and the profile page. Backups record `createdAt`.
+- [x] **4.5 Bundle size** – `xlsx` loads on the first Excel action and the radar chart after the page: `/builder` 1329 → 869 KB of JS, `/roadmap/[id]` 1273 → 1010 KB before load (uncompressed).
 
 ---
 
-## Remaining order
+## What's left
 
-1. Repo cleanup (3.5, 3.7, 3.9, 3.10).
-2. Auto-update (3.11).
-3. Product items (4.1–4.5).
+Every item above is done or closed. Before merging, run through "Not verified by hand yet" at the top in the desktop app. Ideas for new features are in [SUGGESTED_FEATURES.md](SUGGESTED_FEATURES.md).
