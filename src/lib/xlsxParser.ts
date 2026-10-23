@@ -1,8 +1,7 @@
 import * as XLSX from 'xlsx';
 import { RoadmapConfig, Phase, PhaseStep, ResourceLink } from '@/types';
+import { generateId } from '@/lib/utils';
 
-// Helper to generate a dummy ID if none provided
-const generateId = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
 export const downloadExcelTemplate = (language: "en" | "ar") => {
   const wb = XLSX.utils.book_new();

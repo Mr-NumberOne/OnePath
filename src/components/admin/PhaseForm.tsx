@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Phase } from "@/types";
+import { generateId } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -66,7 +67,7 @@ export function PhaseForm({ phase, allPhases, availableCategories, onChange, onD
   const handleAddStep = () => {
     const newSteps = [...(phase.steps || [])];
     newSteps.push({
-      id: `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId("step"),
       title: language === "ar" ? "خطوة جديدة" : "New Step",
       description: "",
       order: newSteps.length + 1
@@ -88,7 +89,7 @@ export function PhaseForm({ phase, allPhases, availableCategories, onChange, onD
 
   const handleAddPhaseResource = () => {
     const newResources = [...(phase.resources || [])];
-    newResources.push({ id: `res-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, title: "", url: "" });
+    newResources.push({ id: generateId("res"), title: "", url: "" });
     onChange({ ...phase, resources: newResources });
   };
 
@@ -106,7 +107,7 @@ export function PhaseForm({ phase, allPhases, availableCategories, onChange, onD
       if (step.id === stepId) {
         return {
           ...step,
-          resources: [...(step.resources || []), { id: `res-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, title: "", url: "" }]
+          resources: [...(step.resources || []), { id: generateId("res"), title: "", url: "" }]
         };
       }
       return step;

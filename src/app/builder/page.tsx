@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { RoadmapConfig } from "@/types";
+import { generateId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import UserButton from "@/components/UserButton";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -54,7 +55,7 @@ export default function AdminDashboard() {
   const handleCreateRoadmap = async () => {
     setIsSaving(true);
     try {
-      const newId = `rm-${Date.now()}`;
+      const newId = generateId("rm");
       const newRoadmap: RoadmapConfig = {
         id: newId,
         title: { en: "New Roadmap", ar: "خارطة طريق جديدة" },

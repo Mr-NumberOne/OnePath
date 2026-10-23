@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { Phase, RoadmapConfig } from "@/types";
+import { generateId } from "@/lib/utils";
 import { PhaseForm } from "@/components/admin/PhaseForm";
 import Roadmap from "@/components/roadmap/Roadmap";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,7 @@ export default function RoadmapEditor() {
   };
 
   const handleAddPhase = () => {
-    const newId = `phase-${Date.now()}`;
+    const newId = generateId("phase");
     const newPhase: Phase = {
       id: newId,
       title: "New Custom Phase",
