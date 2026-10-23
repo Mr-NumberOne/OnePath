@@ -1,9 +1,11 @@
-import * as XLSX from 'xlsx';
+// SheetJS is large, so it is only loaded when an Excel action is used
+const loadXlsx = () => import('xlsx');
 import { RoadmapConfig, Phase, PhaseStep, ResourceLink } from '@/types';
 import { generateId } from '@/lib/utils';
 
 
-export const downloadExcelTemplate = (language: "en" | "ar") => {
+export const downloadExcelTemplate = async (language: "en" | "ar") => {
+  const XLSX = await loadXlsx();
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Roadmap Meta
@@ -60,6 +62,7 @@ type SheetRow = Record<string, string | number | boolean | undefined>;
 const cell = (value: SheetRow[string]): string => (value === undefined || value === null ? "" : String(value));
 
 export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
+  const XLSX = await loadXlsx();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -197,7 +200,8 @@ export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
   });
 };
 
-export const exportRoadmapToExcel = (roadmap: RoadmapConfig, language: "en" | "ar" = "en") => {
+export const exportRoadmapToExcel = async (roadmap: RoadmapConfig, language: "en" | "ar" = "en") => {
+  const XLSX = await loadXlsx();
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Roadmap Meta
