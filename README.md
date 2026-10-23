@@ -29,8 +29,12 @@
 
 ## 🛠️ Tech Stack
 
-- **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
-- **Authentication**: NextAuth.js v5 (Google OAuth)
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack)
+- **Authentication**: Auth.js / NextAuth v5 (Google OAuth)
+- **Desktop**: Electron, packaged with electron-builder
+- **Validation**: [Zod](https://zod.dev/)
+- **Excel**: [SheetJS](https://sheetjs.com/) 0.20 (official build)
+- **Testing**: [Vitest](https://vitest.dev/)
 - **UI Library**: React 19
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
 - **Components**: [Shadcn UI](https://ui.shadcn.com/)
@@ -49,7 +53,7 @@ src/
 │   ├── profile/          # User Profile & Cloud Backups
 │   ├── roadmap/          # Interactive Roadmap Viewer
 │   ├── settings/         # App Settings (Theme, Language)
-│   └── page.tsx          # Public Dashboard / User Homepage
+│   └── page.tsx          # Dashboard / user homepage (every page requires sign-in)
 ├── components/           # React Components
 │   ├── admin/            # Admin-specific components (PhaseForm)
 │   ├── dashboard/        # Dashboard stats and Skill Radar
@@ -57,15 +61,17 @@ src/
 │   └── ui/               # Reusable Shadcn UI components
 ├── contexts/             # React Context Providers (Progress, Roadmaps, Settings)
 ├── data/                 # Local data storage (custom-roadmap.json)
-├── lib/                  # Utilities (XLSX parsing, GDrive API wrappers)
+├── lib/                  # Utilities (XLSX parsing, Drive backup, schema, sync)
 └── types/                # TypeScript Interfaces (RoadmapConfig, Phase, etc.)
+
+desktop/                  # Electron main process, preload bridge, local server, sign-in
 ```
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js (v18 or higher)
+- Node.js 20.9 or higher (CI uses Node 22)
 - npm or yarn
 - A Google Cloud Console project (for OAuth and Drive API)
 
@@ -153,6 +159,22 @@ Currently, the installer is unsigned. To enable code signing:
 2. Set the appropriate `CSC_LINK` and `CSC_KEY_PASSWORD` environment variables.
 3. Re-run `npm run pack:windows`.
 
+## 🧪 Testing and Checks
+
+```bash
+npm test
+```
+
+Runs the Vitest suites (API route, Excel parser, Drive backup, bilingual sync, schema). Other checks:
+
+| Command | What it checks |
+|---|---|
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript for the web app and `desktop/` (run `npm run build:electron` once first so `desktop/env.ts` exists) |
+| `npm run build` | Production build |
+
+GitHub Actions runs all of these, plus `npm audit --omit=dev`, on every push to `main` and every pull request (`.github/workflows/ci.yml`).
+
 ## 📊 Excel Import / Export
 
 You can bulk-create roadmaps by importing a structured `.xlsx` file. The template includes 4 sheets covering all roadmap data: metadata, phases, steps, and resources — with full bilingual (EN/AR) support.
@@ -192,10 +214,11 @@ Fill out the attached Excel template completely. Assign realistic estimated stud
 
 **Desktop Version (Electron):**
 - **Roadmap Data:** Persisted beneath the OS's application-data directory (e.g. `%APPDATA%\OnePath\data\custom-roadmap.json` on Windows).
-- **User Progress & Settings:** Intercepted and securely stored in `%APPDATA%\OnePath\preferences.json` to survive dynamic port changes.
+- **User Progress & Settings:** Stored in `%APPDATA%\OnePath\preferences.json` through the preload bridge, so they survive the local server's changing port.
+- **Sign-in secrets:** The Auth.js signing secret and the Google refresh token are kept in separate files, encrypted with the OS keychain (`safeStorage`) when it is available, out of reach of the web page.
 
 **Cloud Backup (Both):**
-- Users can authorize Google Drive to safely store an encrypted payload of their progress and roadmaps under `ConsultantRoadmapBackup.json` in their drive.
+- Users can back up their progress, roadmaps and preferences to `ConsultantRoadmapBackup.json` in their own Google Drive. The file is plain JSON; the app only gets the `drive.file` scope, so it can see files it created and nothing else.
 
 ---
 
