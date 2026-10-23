@@ -32,3 +32,10 @@ extraResources:
 win:
   target: nsis
   icon: public/android-chrome-512x512.png
+
+# Where electron-updater looks for new versions. A release needs the
+# installer, its .blockmap and latest.yml from dist-electron attached.
+publish:
+  provider: github
+  owner: Mr-NumberOne
+  repo: OnePath

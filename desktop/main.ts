@@ -3,6 +3,7 @@ import path from 'path';
 import { setupStorageHandlers, getAuthSecret } from './storage';
 import { ServerManager } from './server-manager';
 import { startGoogleAuthFlow, clearAuthTokens } from './auth';
+import { setupAutoUpdates } from './updater';
 
 const MAX_LOAD_RETRIES = 5;
 
@@ -143,7 +144,10 @@ if (!gotTheLock) {
     }
   });
 
-  app.whenReady().then(createWindow);
+  app.whenReady().then(async () => {
+    await createWindow();
+    setupAutoUpdates(() => mainWindow);
+  });
 }
 
 app.on('window-all-closed', () => {

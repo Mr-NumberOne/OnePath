@@ -10,9 +10,9 @@
     "typecheck": "tsc --noEmit && tsc -p desktop/tsconfig.json --noEmit",
     "test": "vitest run",
     "dev:desktop": "npm run build:electron && concurrently \"npm run dev\" \"wait-on http://127.0.0.1:3000 && electron .\"",
-    "build:electron": "node scripts/generate-env.js && tsc -p desktop/tsconfig.json",
+    "build:electron": "node scripts/generate-env.js && tsc -p desktop/tsconfig.json && esbuild desktop/dist/main.js --bundle --platform=node --target=node22 --external:electron --outfile=desktop/dist/main.js --allow-overwrite --log-level=warning",
     "build:desktop": "npm run build && npm run build:electron",
-    "pack:windows": "npm run build:desktop && electron-builder --win"
+    "pack:windows": "npm run build:desktop && electron-builder --win --publish never"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^1.25.0",
     "next": "16.4.2",
     "next-auth": "^5.0.0-beta.32",
@@ -43,6 +44,7 @@
     "concurrently": "^9.2.4",
     "electron": "^41.7.1",
     "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
     "jsdom": "^28.1.0",
