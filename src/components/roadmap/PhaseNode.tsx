@@ -39,8 +39,8 @@ export default function PhaseNode({ data }: PhaseNodeProps) {
         onClick={() => {
           if (!isLocked) onClick(phase.id);
         }}
-        role={isLocked ? "presentation" : "button"}
-        tabIndex={isLocked ? -1 : 0}
+        // The React Flow node wrapper is the focusable, labelled element
+        aria-hidden="true"
       >
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">
