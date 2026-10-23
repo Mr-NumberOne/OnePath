@@ -61,7 +61,7 @@ export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const wb = XLSX.read(data, { type: 'binary' });
+        const wb = XLSX.read(data, { type: 'array' });
 
         // 1. Parse Meta
         const wsMeta = wb.Sheets["Roadmap Meta"];
@@ -188,7 +188,7 @@ export const parseExcelFile = async (file: File): Promise<RoadmapConfig> => {
     };
 
     reader.onerror = (err) => reject(err);
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   });
 };
 
