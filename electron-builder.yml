@@ -1,0 +1,34 @@
+# electron-builder configuration for the OnePath desktop app.
+# Build with `npm run pack:windows`.
+
+appId: com.mrnumberone.onepath
+productName: OnePath
+
+directories:
+  output: dist-electron
+
+# Only the compiled Electron code goes into app.asar. The Next.js server
+# ships separately below, with its own node_modules.
+files:
+  - desktop/dist/**/*
+  - "!node_modules/**/*"
+
+extraResources:
+  # electron-builder drops node_modules from a filtered copy, so the
+  # standalone server and its node_modules are copied in two steps
+  - from: .next/standalone
+    to: app.asar.unpacked/standalone
+    filter:
+      - "**/*"
+      - "!node_modules"
+      - "!node_modules/**/*"
+  - from: .next/standalone/node_modules
+    to: app.asar.unpacked/standalone/node_modules
+  - from: .next/static
+    to: app.asar.unpacked/standalone/.next/static
+  - from: public
+    to: app.asar.unpacked/standalone/public
+
+win:
+  target: nsis
+  icon: public/android-chrome-512x512.png
