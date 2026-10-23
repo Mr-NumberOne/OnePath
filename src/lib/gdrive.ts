@@ -1,8 +1,13 @@
 const FILENAME = 'ConsultantRoadmapBackup.json';
 
-// Helper to find the file ID if it exists. The drive.file scope only sees
+export interface BackupFile {
+  id: string;
+  modifiedTime?: string; // ISO timestamp from Drive
+}
+
+// Finds the backup file if it exists. The drive.file scope only sees
 // files this app created; if there are several, the newest one wins.
-export async function checkBackupExists(accessToken: string): Promise<string | null> {
+export async function findBackup(accessToken: string): Promise<BackupFile | null> {
   const params = new URLSearchParams({
     q: `name='${FILENAME}' and trashed=false`,
     spaces: 'drive',
@@ -23,9 +28,14 @@ export async function checkBackupExists(accessToken: string): Promise<string | n
 
   const data = await response.json();
   if (data.files && data.files.length > 0) {
-    return data.files[0].id;
+    return { id: data.files[0].id, modifiedTime: data.files[0].modifiedTime };
   }
   return null;
+}
+
+// Helper to find the file ID if it exists
+export async function checkBackupExists(accessToken: string): Promise<string | null> {
+  return (await findBackup(accessToken))?.id ?? null;
 }
 
 export async function backupToDrive(accessToken: string, data: unknown): Promise<void> {
@@ -63,13 +73,14 @@ export async function backupToDrive(accessToken: string, data: unknown): Promise
   }
 }
 
-export async function restoreFromDrive(accessToken: string): Promise<unknown> {
-  const fileId = await checkBackupExists(accessToken);
-  if (!fileId) {
+// Downloads the backup without applying it, with the time Drive last saw it change
+export async function downloadBackup(accessToken: string): Promise<{ data: unknown; modifiedTime?: string }> {
+  const file = await findBackup(accessToken);
+  if (!file) {
     throw new Error('No backup file found in Google Drive');
   }
 
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
@@ -81,5 +92,5 @@ export async function restoreFromDrive(accessToken: string): Promise<unknown> {
   }
 
   const data = await response.json();
-  return data;
+  return { data, modifiedTime: file.modifiedTime };
 }

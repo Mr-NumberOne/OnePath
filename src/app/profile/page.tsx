@@ -11,8 +11,9 @@ import UserButton from "@/components/UserButton";
 import { Progress } from "@/components/ui/progress";
 import { useState } from "react";
 import { toast } from "sonner";
-import { backupToDrive, restoreFromDrive } from "@/lib/gdrive";
-import { applyBackup, buildBackupPayload } from "@/lib/backup";
+import { backupToDrive } from "@/lib/gdrive";
+import { buildBackupPayload } from "@/lib/backup";
+import { RestoreDialog } from "@/components/RestoreDialog";
 import { getDriveAccessToken } from "@/lib/driveToken";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 
@@ -22,6 +23,7 @@ export default function ProfilePage() {
   const { getGlobalProgress } = useProgress();
   const { roadmaps } = useRoadmaps();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
 
   const handleBackup = async () => {
     const token = await getDriveAccessToken(session);
@@ -38,33 +40,6 @@ export default function ProfilePage() {
     } catch (e) {
       console.error(e);
       toast.error((e instanceof Error && e.message) || "Failed to backup to Google Drive.");
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleRestore = async () => {
-    const token = await getDriveAccessToken(session);
-    if (!token) {
-      toast.error(language === "ar" ? "يرجى تسجيل الدخول مرة أخرى لمنح صلاحيات Google Drive." : "Please re-login to grant Google Drive permissions.");
-      return;
-    }
-
-    if (!confirm(language === "ar" ? "سيؤدي هذا إلى استبدال تقدمك الحالي. هل تريد المتابعة؟" : "This will overwrite your current progress. Continue?")) {
-      return;
-    }
-
-    try {
-      setIsSyncing(true);
-      const data = await restoreFromDrive(token);
-      if (data) {
-        await applyBackup(data);
-        toast.success(language === "ar" ? "تم الاستعادة بنجاح!" : "Restore successful!");
-        window.location.reload();
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error((e instanceof Error && e.message) || "Failed to restore from Google Drive.");
     } finally {
       setIsSyncing(false);
     }
@@ -220,7 +195,7 @@ export default function ProfilePage() {
                   {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin rtl:ml-2 rtl:mr-0" /> : <UploadCloud className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />}
                   {language === "ar" ? "نسخ احتياطي إلى Google Drive" : "Backup to Google Drive"}
                 </Button>
-                <Button variant="outline" onClick={handleRestore} disabled={isSyncing}>
+                <Button variant="outline" onClick={() => setIsRestoreOpen(true)} disabled={isSyncing}>
                   {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin rtl:ml-2 rtl:mr-0" /> : <DownloadCloud className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />}
                   {language === "ar" ? "استعادة من Google Drive" : "Restore from Google Drive"}
                 </Button>
@@ -230,6 +205,8 @@ export default function ProfilePage() {
         </div>
 
       </main>
+
+      <RestoreDialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen} />
     </div>
   );
 }

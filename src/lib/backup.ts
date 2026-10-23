@@ -8,6 +8,8 @@ export const LANGUAGE_KEY = 'roadmap-language';
 const THEME_KEY = 'theme';
 
 export interface BackupPayload {
+  // When the backup was made; older backups don't have it
+  createdAt?: string;
   progress: UserProgressMap;
   roadmaps: RoadmapConfig[];
   settings: {
@@ -20,6 +22,7 @@ export async function buildBackupPayload(roadmaps: RoadmapConfig[]): Promise<Bac
   const progressDataString = await getStoredData(PROGRESS_KEY);
 
   return {
+    createdAt: new Date().toISOString(),
     progress: progressDataString ? JSON.parse(progressDataString) : {},
     roadmaps,
     settings: {
@@ -50,4 +53,43 @@ export async function applyBackup(data: unknown): Promise<void> {
     // Old format fallback: only contains progress
     await setStoredData(PROGRESS_KEY, JSON.stringify(data));
   }
+}
+
+// What a restore would bring in or replace, for showing before it happens
+export interface DataSummary {
+  createdAt?: string;
+  // null when a (very old) backup has no roadmaps, so a restore keeps the current ones
+  roadmaps: { id: string; title: { en: string; ar: string } }[] | null;
+  completedPhases: number;
+  completedSteps: number;
+}
+
+function countProgress(progress: UserProgressMap | undefined) {
+  const entries = Object.values(progress || {});
+  return {
+    completedPhases: entries.reduce((n, p) => n + (p?.completedPhases?.length || 0), 0),
+    completedSteps: entries.reduce((n, p) => n + (p?.completedSteps?.length || 0), 0),
+  };
+}
+
+export function summarizeLocal(roadmaps: RoadmapConfig[], progress: UserProgressMap): DataSummary {
+  return {
+    roadmaps: roadmaps.map((r) => ({ id: r.id, title: r.title })),
+    ...countProgress(progress),
+  };
+}
+
+// Returns null when the data isn't something applyBackup would accept
+export function summarizeBackup(data: unknown): DataSummary | null {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const backup = data as Partial<BackupPayload>;
+  if (backup.progress && backup.roadmaps) {
+    return {
+      createdAt: backup.createdAt,
+      roadmaps: backup.roadmaps.map((r) => ({ id: r.id, title: r.title })),
+      ...countProgress(backup.progress),
+    };
+  }
+  // Old format: the whole file is the progress map
+  return { roadmaps: null, ...countProgress(data as UserProgressMap) };
 }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { applyBackup, buildBackupPayload, LANGUAGE_KEY, PROGRESS_KEY } from "./backup";
+import { applyBackup, buildBackupPayload, LANGUAGE_KEY, PROGRESS_KEY, summarizeBackup, summarizeLocal } from "./backup";
 import { makeRoadmap } from "@/test/fixtures";
 
 const progress = { "rm-1": { completedPhases: ["phase-1"], completedSteps: [], completedResources: [], completedProjects: [], completedInterviewQuestions: [], achievements: [], portfolioScore: 100, studyHours: 10 } };
@@ -38,7 +38,8 @@ describe("buildBackupPayload", () => {
     localStorage.setItem("theme", "dark");
 
     const payload = await buildBackupPayload([makeRoadmap()]);
-    expect(payload).toEqual({ progress, roadmaps: [makeRoadmap()], settings: { theme: "dark", language: "ar" } });
+    expect(payload).toEqual({ createdAt: expect.any(String), progress, roadmaps: [makeRoadmap()], settings: { theme: "dark", language: "ar" } });
+    expect(new Date(payload.createdAt!).getTime()).not.toBeNaN();
   });
 
   it("reads progress and language from the desktop store", async () => {
@@ -79,5 +80,37 @@ describe("applyBackup", () => {
   it("rejects data that isn't an object", async () => {
     await expect(applyBackup("nope")).rejects.toThrow();
     await expect(applyBackup([])).rejects.toThrow();
+  });
+});
+
+describe("backup summaries", () => {
+  const roadmap = makeRoadmap();
+  const withSteps = { "rm-1": { ...progress["rm-1"], completedSteps: ["s1", "s2"] } };
+
+  it("summarizes this device", () => {
+    expect(summarizeLocal([roadmap], withSteps)).toEqual({
+      roadmaps: [{ id: roadmap.id, title: roadmap.title }],
+      completedPhases: 1,
+      completedSteps: 2,
+    });
+  });
+
+  it("summarizes a full backup, including when it was made", () => {
+    const summary = summarizeBackup({ createdAt: "2026-10-01T10:00:00.000Z", progress: withSteps, roadmaps: [roadmap], settings: {} });
+    expect(summary).toEqual({
+      createdAt: "2026-10-01T10:00:00.000Z",
+      roadmaps: [{ id: roadmap.id, title: roadmap.title }],
+      completedPhases: 1,
+      completedSteps: 2,
+    });
+  });
+
+  it("marks roadmaps as unchanged for old progress-only backups", () => {
+    expect(summarizeBackup(progress)).toEqual({ roadmaps: null, completedPhases: 1, completedSteps: 0 });
+  });
+
+  it("rejects data applyBackup would reject", () => {
+    expect(summarizeBackup("nope")).toBeNull();
+    expect(summarizeBackup([])).toBeNull();
   });
 });
