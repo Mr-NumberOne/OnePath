@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
+import crypto from "crypto";
 import { RoadmapConfig } from "@/types";
 import { auth } from "@/auth";
 import { roadmapListSchema } from "@/lib/roadmapSchema";
@@ -15,16 +16,37 @@ const getDataFile = () => {
   return path.join(process.cwd(), "src", "data", "custom-roadmap.json");
 };
 
+// Serializes writes so concurrent saves can't interleave.
+let writeQueue: Promise<void> = Promise.resolve();
+
+function writeDataFile(data: unknown): Promise<void> {
+  const run = async () => {
+    const dataFile = getDataFile();
+    await fs.mkdir(path.dirname(dataFile), { recursive: true });
+    // Unique temp name per write, then an atomic rename over the real file
+    const tmpFile = `${dataFile}.${crypto.randomUUID()}.tmp`;
+    try {
+      await fs.writeFile(tmpFile, JSON.stringify(data, null, 2), "utf-8");
+      await fs.rename(tmpFile, dataFile);
+    } catch (error) {
+      await fs.rm(tmpFile, { force: true });
+      throw error;
+    }
+  };
+  const result = writeQueue.then(run);
+  writeQueue = result.catch(() => {});
+  return result;
+}
+
 export async function GET() {
   const session = await auth();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dataFile = getDataFile();
   let fileContents: string;
   try {
-    fileContents = await fs.readFile(dataFile, "utf-8");
+    fileContents = await fs.readFile(getDataFile(), "utf-8");
   } catch (error) {
     // No file yet means no roadmaps; anything else is a real failure
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -51,10 +73,7 @@ export async function GET() {
         }
       };
       data = [demoRoadmap];
-      // Save migrated data (atomic)
-      const tmpFile = `${dataFile}.tmp`;
-      await fs.writeFile(tmpFile, JSON.stringify(data, null, 2), "utf-8");
-      await fs.rename(tmpFile, dataFile);
+      await writeDataFile(data);
     }
 
     return NextResponse.json(data); // returns RoadmapConfig[]
@@ -66,42 +85,38 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (declaredLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+  }
+
+  const rawBody = await request.text();
+  if (Buffer.byteLength(rawBody, "utf-8") > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+  }
+
+  let body: unknown;
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    body = JSON.parse(rawBody);
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
-    const declaredLength = Number(request.headers.get("content-length") || 0);
-    if (declaredLength > MAX_BODY_BYTES) {
-      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
-    }
+  const parsed = roadmapListSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid roadmap data format", issues: parsed.error.issues.slice(0, 10) },
+      { status: 400 }
+    );
+  }
 
-    const rawBody = await request.text();
-    if (Buffer.byteLength(rawBody, "utf-8") > MAX_BODY_BYTES) {
-      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
-    }
-
-    let body: unknown;
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-
-    const parsed = roadmapListSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid roadmap data format", issues: parsed.error.issues.slice(0, 10) },
-        { status: 400 }
-      );
-    }
-
-    const dataFile = getDataFile();
-    const tmpFile = `${dataFile}.tmp`;
-    await fs.writeFile(tmpFile, JSON.stringify(parsed.data, null, 2), "utf-8");
-    await fs.rename(tmpFile, dataFile);
-
+  try {
+    await writeDataFile(parsed.data);
     return NextResponse.json({ success: true, message: "Roadmaps saved successfully" });
   } catch (error) {
     console.error("Failed to save roadmaps", error);
