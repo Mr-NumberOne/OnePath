@@ -11,7 +11,13 @@ import UserButton from "@/components/UserButton";
 import { useProgress } from "@/contexts/ProgressContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import SkillRadar from "@/components/dashboard/SkillRadar";
+import dynamic from "next/dynamic";
+
+// recharts is large; load the radar chart after the page itself
+const SkillRadar = dynamic(() => import("@/components/dashboard/SkillRadar"), {
+  ssr: false,
+  loading: () => <div className="w-full h-full min-h-[150px] rounded-lg bg-muted/40 animate-pulse" aria-hidden="true" />,
+});
 
 export default function RoadmapPage() {
   const params = useParams();

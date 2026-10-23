@@ -5,13 +5,16 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useProgress } from "@/contexts/ProgressContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User, Mail, Award, Loader2, Cloud, UploadCloud, DownloadCloud } from "lucide-react";
+import { ArrowLeft, Mail, Award, Loader2, Cloud, UploadCloud, DownloadCloud } from "lucide-react";
 import Link from "next/link";
 import UserButton from "@/components/UserButton";
 import { Progress } from "@/components/ui/progress";
 import { useState } from "react";
 import { toast } from "sonner";
-import { backupToDrive, restoreFromDrive } from "@/lib/gdrive";
+import { backupToDrive } from "@/lib/gdrive";
+import { buildBackupPayload } from "@/lib/backup";
+import { RestoreDialog } from "@/components/RestoreDialog";
+import { getDriveAccessToken } from "@/lib/driveToken";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 
 export default function ProfilePage() {
@@ -20,10 +23,10 @@ export default function ProfilePage() {
   const { getGlobalProgress } = useProgress();
   const { roadmaps } = useRoadmaps();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
 
   const handleBackup = async () => {
-    // @ts-ignore - accessToken exists due to custom next-auth config
-    const token = session?.accessToken;
+    const token = await getDriveAccessToken(session);
     if (!token) {
       toast.error(language === "ar" ? "يرجى تسجيل الدخول مرة أخرى لمنح صلاحيات Google Drive." : "Please re-login to grant Google Drive permissions.");
       return;
@@ -31,69 +34,12 @@ export default function ProfilePage() {
 
     try {
       setIsSyncing(true);
-      const progressDataString = localStorage.getItem("erp-roadmap-progress-v2");
-      const parsedProgress = progressDataString ? JSON.parse(progressDataString) : {};
-      
-      const backupPayload = {
-        progress: parsedProgress,
-        roadmaps: roadmaps,
-        settings: {
-          theme: localStorage.getItem("theme") || "system",
-          language: localStorage.getItem("roadmap-language") || "en"
-        }
-      };
-
+      const backupPayload = await buildBackupPayload(roadmaps);
       await backupToDrive(token, backupPayload);
       toast.success(language === "ar" ? "تم النسخ الاحتياطي بنجاح!" : "Backup successful!");
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error(e.message || "Failed to backup to Google Drive.");
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleRestore = async () => {
-    // @ts-ignore
-    const token = session?.accessToken;
-    if (!token) {
-      toast.error(language === "ar" ? "يرجى تسجيل الدخول مرة أخرى لمنح صلاحيات Google Drive." : "Please re-login to grant Google Drive permissions.");
-      return;
-    }
-
-    if (!confirm(language === "ar" ? "سيؤدي هذا إلى استبدال تقدمك الحالي. هل تريد المتابعة؟" : "This will overwrite your current progress. Continue?")) {
-      return;
-    }
-
-    try {
-      setIsSyncing(true);
-      const data = await restoreFromDrive(token);
-      if (data) {
-        if (data.progress && data.roadmaps) {
-          // New format: contains progress, roadmaps, and settings
-          localStorage.setItem("erp-roadmap-progress-v2", JSON.stringify(data.progress));
-          
-          if (data.settings) {
-            if (data.settings.theme) localStorage.setItem("theme", data.settings.theme);
-            if (data.settings.language) localStorage.setItem("roadmap-language", data.settings.language);
-          }
-
-          await fetch("/api/roadmaps", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data.roadmaps)
-          });
-        } else {
-          // Old format fallback: only contains progress
-          localStorage.setItem("erp-roadmap-progress-v2", JSON.stringify(data));
-        }
-
-        toast.success(language === "ar" ? "تم الاستعادة بنجاح!" : "Restore successful!");
-        window.location.reload();
-      }
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e.message || "Failed to restore from Google Drive.");
+      toast.error((e instanceof Error && e.message) || "Failed to backup to Google Drive.");
     } finally {
       setIsSyncing(false);
     }
@@ -249,7 +195,7 @@ export default function ProfilePage() {
                   {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin rtl:ml-2 rtl:mr-0" /> : <UploadCloud className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />}
                   {language === "ar" ? "نسخ احتياطي إلى Google Drive" : "Backup to Google Drive"}
                 </Button>
-                <Button variant="outline" onClick={handleRestore} disabled={isSyncing}>
+                <Button variant="outline" onClick={() => setIsRestoreOpen(true)} disabled={isSyncing}>
                   {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin rtl:ml-2 rtl:mr-0" /> : <DownloadCloud className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />}
                   {language === "ar" ? "استعادة من Google Drive" : "Restore from Google Drive"}
                 </Button>
@@ -259,6 +205,8 @@ export default function ProfilePage() {
         </div>
 
       </main>
+
+      <RestoreDialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen} />
     </div>
   );
 }

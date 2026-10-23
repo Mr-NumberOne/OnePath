@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { LogIn, LogOut, Loader2, User, Settings } from "lucide-react";
 import Link from "next/link";
@@ -26,6 +26,10 @@ import { useState } from "react";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { backupToDrive } from "@/lib/gdrive";
+import { buildBackupPayload, PROGRESS_KEY } from "@/lib/backup";
+import { removeStoredData } from "@/lib/storage";
+import { saveRoadmaps } from "@/lib/roadmapApi";
+import { getDriveAccessToken } from "@/lib/driveToken";
 import { toast } from "sonner";
 import { AlertTriangle, Cloud } from "lucide-react";
 
@@ -39,19 +43,17 @@ export default function UserButton() {
 
   const confirmLogout = async () => {
     // Clear local progress
-    localStorage.removeItem("erp-roadmap-progress-v2");
+    await removeStoredData(PROGRESS_KEY);
     sessionStorage.removeItem("hasCheckedBackup");
     
-    // Clear roadmaps from the server
-    await fetch("/api/roadmaps", {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify([])
-    });
+    // Clear roadmaps from the server; don't block logout if that fails
+    try {
+      await saveRoadmaps([]);
+    } catch (e) {
+      console.error("Failed to clear roadmaps on logout", e);
+    }
 
-    // @ts-ignore
     if (typeof window !== 'undefined' && window.desktopAPI?.logout) {
-      // @ts-ignore
       await window.desktopAPI.logout();
     }
 
@@ -59,8 +61,7 @@ export default function UserButton() {
   };
 
   const handleBackupAndLogout = async () => {
-    // @ts-ignore
-    const token = session?.accessToken;
+    const token = await getDriveAccessToken(session);
     if (!token) {
       toast.error(language === "ar" ? "يرجى تسجيل الدخول مرة أخرى لمنح صلاحيات Google Drive." : "Please re-login to grant Google Drive permissions.");
       return;
@@ -68,24 +69,13 @@ export default function UserButton() {
 
     try {
       setIsBackingUp(true);
-      const progressDataString = localStorage.getItem("erp-roadmap-progress-v2");
-      const parsedProgress = progressDataString ? JSON.parse(progressDataString) : {};
-      
-      const backupPayload = {
-        progress: parsedProgress,
-        roadmaps: roadmaps,
-        settings: {
-          theme: localStorage.getItem("theme") || "system",
-          language: localStorage.getItem("roadmap-language") || "en"
-        }
-      };
-
+      const backupPayload = await buildBackupPayload(roadmaps);
       await backupToDrive(token, backupPayload);
       toast.success(language === "ar" ? "تم النسخ الاحتياطي بنجاح!" : "Backup successful!");
       await confirmLogout();
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      toast.error(e.message || (language === "ar" ? "فشل النسخ الاحتياطي." : "Failed to backup to Google Drive."));
+      toast.error((e instanceof Error && e.message) || (language === "ar" ? "فشل النسخ الاحتياطي." : "Failed to backup to Google Drive."));
       setIsBackingUp(false);
     }
   };

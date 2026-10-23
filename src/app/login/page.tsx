@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const { language } = useSettings();
@@ -17,29 +18,31 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     
-    // @ts-ignore
     if (typeof window !== 'undefined' && window.desktopAPI?.startGoogleAuth) {
       try {
-        // @ts-ignore
         const result = await window.desktopAPI.startGoogleAuth();
-        const res = await signIn("desktop", { 
+        // The server verifies the token with Google and reads the user profile itself
+        const res = await signIn("desktop", {
           redirect: false,
           accessToken: result.access_token,
-          id: result.user.id,
-          name: result.user.name,
-          email: result.user.email,
-          image: result.user.image
         });
 
         if (res?.ok && !res.error) {
+          if (result.rememberedLogin === false) {
+            toast.warning(language === "ar"
+              ? "تعذر حفظ تسجيل الدخول بأمان على هذا الجهاز، لذا ستحتاج إلى تسجيل الدخول مرة أخرى في المرة القادمة."
+              : "Your sign-in couldn't be stored securely on this device, so you'll need to sign in again next time.");
+          }
           router.push("/");
           router.refresh();
         } else {
           console.error("NextAuth signin failed", res?.error);
+          toast.error(language === "ar" ? "فشل تسجيل الدخول. حاول مرة أخرى." : "Sign-in failed. Please try again.");
           setIsLoading(false);
         }
       } catch (e) {
         console.error("Desktop auth failed:", e);
+        toast.error(language === "ar" ? "فشل تسجيل الدخول. حاول مرة أخرى." : "Sign-in failed. Please try again.");
         setIsLoading(false);
       }
     } else {

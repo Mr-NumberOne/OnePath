@@ -2,7 +2,7 @@
 
 import { useSettings } from "@/contexts/SettingsContext";
 import { useTheme } from "next-themes";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Globe, Moon, Sun, Monitor } from "lucide-react";
 import Link from "next/link";

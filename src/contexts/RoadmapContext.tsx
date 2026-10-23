@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { RoadmapConfig } from "@/types";
 // Removed defaultRoadmaps so the app starts empty
 
@@ -12,34 +13,47 @@ interface RoadmapContextType {
 
 const RoadmapContext = createContext<RoadmapContextType | undefined>(undefined);
 
+async function loadRoadmaps(): Promise<RoadmapConfig[]> {
+  try {
+    const res = await fetch(`/api/roadmaps`);
+    if (res.ok) {
+      const data = await res.json();
+      return data || [];
+    }
+  } catch (error) {
+    console.error("Failed to fetch roadmaps", error);
+  }
+  return [];
+}
+
 export function RoadmapProvider({ children }: { children: React.ReactNode }) {
+  const { status } = useSession();
   const [roadmaps, setRoadmaps] = useState<RoadmapConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchRoadmaps = async () => {
+  const refreshRoadmaps = useCallback(async () => {
     setIsLoading(true);
-    try {
-      const res = await fetch(`/api/roadmaps`);
-      if (res.ok) {
-        const data = await res.json();
-        setRoadmaps(data || []);
-      } else {
-        setRoadmaps([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch roadmaps", error);
-      setRoadmaps([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRoadmaps();
+    setRoadmaps(await loadRoadmaps());
+    setIsLoading(false);
   }, []);
 
+  // The API requires a session, so (re)load once the user is signed in.
+  // The provider stays mounted across the login redirect, hence the status dependency.
+  useEffect(() => {
+    if (status === "loading") return;
+
+    let active = true;
+    const load = status === "authenticated" ? loadRoadmaps() : Promise.resolve([]);
+    load.then((data) => {
+      if (!active) return;
+      setRoadmaps(data);
+      setIsLoading(false);
+    });
+    return () => { active = false; };
+  }, [status]);
+
   return (
-    <RoadmapContext.Provider value={{ roadmaps, isLoading, refreshRoadmaps: fetchRoadmaps }}>
+    <RoadmapContext.Provider value={{ roadmaps, isLoading, refreshRoadmaps }}>
       {children}
     </RoadmapContext.Provider>
   );

@@ -18,6 +18,9 @@ if (fs.existsSync(envLocalPath)) {
     if (process.env.AUTH_GOOGLE_DESKTOP_SECRET) clientSecret = `"${process.env.AUTH_GOOGLE_DESKTOP_SECRET}"`;
 }
 
+// The desktop client secret ends up inside the shipped app, so it is not
+// confidential. Google requires it for "Desktop app" clients anyway and treats
+// it as public; PKCE protects the sign-in. Never put the Web client secret here.
 const envTsContent = `// AUTO-GENERATED FILE. DO NOT COMMIT TO GIT.
 export const CLIENT_ID = ${clientId};
 export const CLIENT_SECRET = ${clientSecret};

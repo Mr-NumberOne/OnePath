@@ -3,14 +3,17 @@
 import React, { useState } from "react";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { RoadmapConfig } from "@/types";
+import { generateId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import UserButton from "@/components/UserButton";
 import { useSettings } from "@/contexts/SettingsContext";
 import Link from "next/link";
-import { ArrowLeft, Plus, Edit, Trash2, Power, PowerOff, Download, Upload } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Power, PowerOff, Download, Upload, FileJson, FileSpreadsheet } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { downloadExcelTemplate, parseExcelFile, exportRoadmapToExcel } from "@/lib/xlsxParser";
+import { saveRoadmaps } from "@/lib/roadmapApi";
+import { exportRoadmapToJson, parseRoadmapJson } from "@/lib/roadmapJson";
 import { useRef } from "react";
 import {
   Dialog,
@@ -34,14 +37,12 @@ export default function AdminDashboard() {
 
     try {
       setIsSaving(true);
-      const newRoadmap = await parseExcelFile(file);
+      const newRoadmap = file.name.toLowerCase().endsWith(".json")
+        ? parseRoadmapJson(await file.text(), roadmaps.map((r) => r.id))
+        : await parseExcelFile(file);
       const updatedRoadmaps = [...roadmaps, newRoadmap];
 
-      await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
+      await saveRoadmaps(updatedRoadmaps);
 
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم استيراد الخارطة بنجاح" : "Roadmap imported successfully!");
@@ -57,7 +58,7 @@ export default function AdminDashboard() {
   const handleCreateRoadmap = async () => {
     setIsSaving(true);
     try {
-      const newId = `rm-${Date.now()}`;
+      const newId = generateId("rm");
       const newRoadmap: RoadmapConfig = {
         id: newId,
         title: { en: "New Roadmap", ar: "خارطة طريق جديدة" },
@@ -69,11 +70,7 @@ export default function AdminDashboard() {
 
       const updatedRoadmaps = [...roadmaps, newRoadmap];
 
-      await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
+      await saveRoadmaps(updatedRoadmaps);
 
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم إنشاء الخارطة بنجاح" : "Roadmap created successfully!");
@@ -91,11 +88,7 @@ export default function AdminDashboard() {
         r.id === roadmap.id ? { ...r, isEnabled: !r.isEnabled } : r
       );
 
-      await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
+      await saveRoadmaps(updatedRoadmaps);
 
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم تحديث حالة الخارطة" : "Roadmap status updated!");
@@ -110,11 +103,7 @@ export default function AdminDashboard() {
     try {
       const updatedRoadmaps = roadmaps.filter((r) => r.id !== roadmapToDelete);
 
-      await fetch("/api/roadmaps", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedRoadmaps),
-      });
+      await saveRoadmaps(updatedRoadmaps);
 
       await refreshRoadmaps();
       toast.success(language === "ar" ? "تم حذف الخارطة بنجاح" : "Roadmap deleted successfully!");
@@ -153,7 +142,7 @@ export default function AdminDashboard() {
           </Button>
           <input 
             type="file" 
-            accept=".xlsx" 
+            accept=".xlsx,.json"
             className="hidden" 
             ref={fileInputRef} 
             onChange={handleImportExcel} 
@@ -184,8 +173,23 @@ export default function AdminDashboard() {
                       <Edit className="w-4 h-4" />
                     </Button>
                   </Link>
-                  <Button variant="outline" size="icon" onClick={() => exportRoadmapToExcel(roadmap, language as "en" | "ar")}>
-                    <Download className="w-4 h-4" />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => exportRoadmapToExcel(roadmap, language as "en" | "ar")}
+                    aria-label={language === "ar" ? "تصدير Excel" : "Export to Excel"}
+                    title={language === "ar" ? "تصدير Excel" : "Export to Excel"}
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => exportRoadmapToJson(roadmap, language as "en" | "ar")}
+                    aria-label={language === "ar" ? "تصدير JSON (نسخة كاملة)" : "Export to JSON (exact copy)"}
+                    title={language === "ar" ? "تصدير JSON (نسخة كاملة)" : "Export to JSON (exact copy)"}
+                  >
+                    <FileJson className="w-4 h-4" />
                   </Button>
                   <Button variant="outline" size="icon" className="text-destructive hover:bg-destructive hover:text-white" onClick={() => setRoadmapToDelete(roadmap.id)}>
                     <Trash2 className="w-4 h-4" />

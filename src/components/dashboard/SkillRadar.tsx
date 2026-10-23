@@ -11,7 +11,6 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   ResponsiveContainer,
-  Tooltip,
 } from "recharts";
 
 export default function SkillRadar({ roadmapId }: { roadmapId?: string }) {

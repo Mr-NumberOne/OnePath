@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useEffect, useState, useSyncExternalStore } from "react";
 import {
   ReactFlow,
   Controls,
@@ -11,6 +11,7 @@ import {
   useEdgesState,
   Panel,
   Position,
+  type AriaLabelConfig,
 } from "@xyflow/react";
 import { Phase } from "@/types";
 import "@xyflow/react/dist/style.css";
@@ -25,6 +26,42 @@ import dagre from "dagre";
 const nodeTypes = {
   phaseNode: PhaseNode,
 };
+
+// Screen reader text for React Flow's built-in controls and node hints
+const ARIA_LABELS: Record<"en" | "ar", Partial<AriaLabelConfig>> = {
+  en: {
+    "node.a11yDescription.default": "Press Enter to open the phase details. Press Tab to move to the next phase.",
+    "controls.ariaLabel": "Roadmap view controls",
+    "controls.zoomIn.ariaLabel": "Zoom in",
+    "controls.zoomOut.ariaLabel": "Zoom out",
+    "controls.fitView.ariaLabel": "Fit the whole roadmap",
+  },
+  ar: {
+    "node.a11yDescription.default": "اضغط Enter لفتح تفاصيل المرحلة. اضغط Tab للانتقال إلى المرحلة التالية.",
+    "node.a11yDescription.keyboardDisabled": "اضغط Enter لفتح تفاصيل المرحلة.",
+    "edge.a11yDescription.default": "",
+    "controls.ariaLabel": "أدوات التحكم في عرض الخارطة",
+    "controls.zoomIn.ariaLabel": "تكبير",
+    "controls.zoomOut.ariaLabel": "تصغير",
+    "controls.fitView.ariaLabel": "عرض الخارطة كاملة",
+    "controls.interactive.ariaLabel": "تفعيل أو تعطيل التفاعل",
+    "handle.ariaLabel": "نقطة اتصال",
+  },
+};
+
+// What a screen reader announces for a phase node
+function phaseAriaLabel(phase: Phase, status: "completed" | "locked" | "open", missingPrereqs: string[], lang: "en" | "ar") {
+  if (lang === "ar") {
+    const state = status === "completed" ? "مكتملة"
+      : status === "locked" ? `مقفلة، أكمل أولاً: ${missingPrereqs.join("، ")}`
+      : "متاحة";
+    return `${phase.title}. ${state}. ${phase.estimatedHours} ساعات.`;
+  }
+  const state = status === "completed" ? "Completed"
+    : status === "locked" ? `Locked, complete first: ${missingPrereqs.join(", ")}`
+    : "Available";
+  return `${phase.title}. ${state}. ${phase.estimatedHours} hours.`;
+}
 
 const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
@@ -64,17 +101,19 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = "TB") => 
   return { nodes: newNodes, edges };
 };
 
+const subscribeNoop = () => () => {};
+
 interface RoadmapProps {
   roadmapId?: string;
   previewPhases?: Phase[];
 }
 
 export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
-  const { getRoadmapProgress, getGlobalProgress, togglePhaseCompletion, progressMap } = useProgress();
+  const { getRoadmapProgress, getGlobalProgress, togglePhaseCompletion } = useProgress();
   
   const progress = useMemo(() => {
     return roadmapId ? getRoadmapProgress(roadmapId) : getGlobalProgress();
-  }, [roadmapId, progressMap]);
+  }, [roadmapId, getRoadmapProgress, getGlobalProgress]);
   const { theme, resolvedTheme } = useTheme();
   const { language } = useSettings();
   const { roadmaps } = useRoadmaps();
@@ -84,24 +123,32 @@ export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
     return previewPhases || activeRoadmap?.phases[language as "en" | "ar"] || [];
   }, [previewPhases, activeRoadmap, language]);
 
-  const [mounted, setMounted] = useState(false);
+  // false during SSR and hydration, true afterwards
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
   const [selectedPhase, setSelectedPhase] = useState<Phase | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const handleToggleCompletion = (phaseId: string) => {
+  const handleToggleCompletion = useCallback((phaseId: string) => {
     if (roadmapId) {
       togglePhaseCompletion(roadmapId, phaseId);
     }
-  };
+  }, [roadmapId, togglePhaseCompletion]);
 
-  const handleNodeClick = (phaseId: string) => {
+  const handleNodeClick = useCallback((phaseId: string) => {
     const phase = currentPhasesData.find((p) => p.id === phaseId);
     if (phase) {
       setSelectedPhase(phase);
     }
+  }, [currentPhasesData]);
+
+  // React Flow focuses its own node wrappers (and pans to them); open the
+  // focused phase on Enter, like a click. Locked phases stay closed.
+  const handleGraphKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter") return;
+    const nodeId = (e.target as HTMLElement).closest(".react-flow__node")?.getAttribute("data-id");
+    const node = nodeId ? nodes.find((n) => n.id === nodeId) : undefined;
+    if (!node || (node.data as { isLocked?: boolean }).isLocked) return;
+    e.preventDefault();
+    handleNodeClick(node.id);
   };
 
   // Use default theme/language for SSR to prevent hydration mismatch
@@ -112,14 +159,17 @@ export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
     return currentPhasesData.map((phase) => {
       const isCompleted = progress.completedPhases.includes(phase.id);
       
-      const isLocked = phase.prerequisites.length > 0 && phase.prerequisites.some(
+      const missingPrereqs = phase.prerequisites.filter(
         (prereqId) => !progress.completedPhases.includes(prereqId)
       );
+      const isLocked = missingPrereqs.length > 0;
+      const missingTitles = missingPrereqs.map((id) => currentPhasesData.find((p) => p.id === id)?.title ?? id);
 
       return {
         id: phase.id,
         position: { x: 0, y: 0 },
         type: "phaseNode",
+        ariaLabel: phaseAriaLabel(phase, isCompleted ? "completed" : isLocked ? "locked" : "open", missingTitles, language as "en" | "ar"),
         data: {
           phase,
           isCompleted,
@@ -129,7 +179,7 @@ export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
         },
       };
     });
-  }, [progress, togglePhaseCompletion, currentPhasesData]);
+  }, [progress, currentPhasesData, handleNodeClick, handleToggleCompletion, language]);
 
   const initialEdges: Edge[] = useMemo(() => {
     const edges: Edge[] = [];
@@ -178,6 +228,11 @@ export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
         nodeTypes={nodeTypes}
         colorMode={isDark ? "dark" : "light"}
         panOnScroll={true}
+        // Viewers can't edit the graph, so don't let Backspace remove nodes
+        deleteKeyCode={null}
+        edgesFocusable={false}
+        ariaLabelConfig={ARIA_LABELS[language as "en" | "ar"]}
+        onKeyDown={handleGraphKeyDown}
         zoomOnScroll={false}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         minZoom={0.2}
@@ -187,7 +242,7 @@ export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
         <Background gap={16} size={1} color={isDark ? "#27272a" : "#e4e4e7"} />
         <Controls showZoom={true} />
         <Panel position="top-left" className="bg-background/80 p-2 rounded-md shadow-sm border text-xs">
-          {language === "ar" ? "اضغط على أي مرحلة لعرض التفاصيل" : "Click a node to view details"}
+          {language === "ar" ? "اضغط على أي مرحلة (أو Enter) لعرض التفاصيل" : "Click a phase (or press Enter) to view details"}
         </Panel>
       </ReactFlow>
 
