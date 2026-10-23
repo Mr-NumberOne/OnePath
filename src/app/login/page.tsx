@@ -18,10 +18,8 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     
-    // @ts-ignore
     if (typeof window !== 'undefined' && window.desktopAPI?.startGoogleAuth) {
       try {
-        // @ts-ignore
         const result = await window.desktopAPI.startGoogleAuth();
         // The server verifies the token with Google and reads the user profile itself
         const res = await signIn("desktop", {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Phase } from "@/types";
 import { generateId } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -25,12 +25,11 @@ interface PhaseFormProps {
 
 export function PhaseForm({ phase, allPhases, availableCategories, onChange, onDelete }: PhaseFormProps) {
   const { language } = useSettings();
-  const [cycleError, setCycleError] = useState(false);
-
-  // Clear error if prerequisites change or phase changes
-  useEffect(() => {
-    setCycleError(false);
-  }, [phase.id, phase.prerequisites]);
+  // The cycle warning belongs to the prerequisites it was shown for, so it
+  // disappears by itself once the phase or its prerequisites change
+  const prereqKey = `${phase.id}:${phase.prerequisites.join(",")}`;
+  const [cycleErrorKey, setCycleErrorKey] = useState<string | null>(null);
+  const cycleError = cycleErrorKey === prereqKey;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -51,12 +50,12 @@ export function PhaseForm({ phase, allPhases, availableCategories, onChange, onD
       };
 
       if (checkCycle(prereqId)) {
-        setCycleError(true);
+        setCycleErrorKey(prereqKey);
         return;
       }
     }
 
-    setCycleError(false);
+    setCycleErrorKey(null);
     const newPrereqs = phase.prerequisites.includes(prereqId)
       ? phase.prerequisites.filter((id) => id !== prereqId)
       : [...phase.prerequisites, prereqId];
@@ -314,7 +313,7 @@ export function PhaseForm({ phase, allPhases, availableCategories, onChange, onD
           </Button>
         </div>
         <div className="space-y-3">
-          {(phase.steps || []).sort((a,b) => a.order - b.order).map((step, index) => (
+          {[...(phase.steps || [])].sort((a,b) => a.order - b.order).map((step) => (
             <div key={step.id} className="flex gap-2 items-start border p-3 rounded-md bg-zinc-50 dark:bg-zinc-900">
               <div className="mt-2 text-muted-foreground cursor-grab active:cursor-grabbing">
                 <GripVertical className="w-4 h-4" />

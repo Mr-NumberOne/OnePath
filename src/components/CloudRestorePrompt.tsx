@@ -22,7 +22,6 @@ export function CloudRestorePrompt() {
   const { data: session, status } = useSession();
   const { language } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
-  const [isChecking, setIsChecking] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
 
   useEffect(() => {
@@ -39,7 +38,6 @@ export function CloudRestorePrompt() {
 
     const checkBackup = async () => {
       try {
-        setIsChecking(true);
         const fileId = await checkBackupExists(token);
         if (fileId) {
           // Backup found, prompt user
@@ -49,7 +47,6 @@ export function CloudRestorePrompt() {
         console.error("Failed to check for backup", error);
         toast.error(`Backup check failed: ${error.message || "Unknown error"}`);
       } finally {
-        setIsChecking(false);
         // Mark as checked so we don't check again this session
         sessionStorage.setItem("hasCheckedBackup", "true");
       }

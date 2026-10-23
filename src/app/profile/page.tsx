@@ -5,7 +5,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useProgress } from "@/contexts/ProgressContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User, Mail, Award, Loader2, Cloud, UploadCloud, DownloadCloud } from "lucide-react";
+import { ArrowLeft, Mail, Award, Loader2, Cloud, UploadCloud, DownloadCloud } from "lucide-react";
 import Link from "next/link";
 import UserButton from "@/components/UserButton";
 import { Progress } from "@/components/ui/progress";

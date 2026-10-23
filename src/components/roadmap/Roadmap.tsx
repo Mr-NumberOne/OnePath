@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useEffect, useState, useSyncExternalStore } from "react";
 import {
   ReactFlow,
   Controls,
@@ -64,17 +64,19 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = "TB") => 
   return { nodes: newNodes, edges };
 };
 
+const subscribeNoop = () => () => {};
+
 interface RoadmapProps {
   roadmapId?: string;
   previewPhases?: Phase[];
 }
 
 export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
-  const { getRoadmapProgress, getGlobalProgress, togglePhaseCompletion, progressMap } = useProgress();
+  const { getRoadmapProgress, getGlobalProgress, togglePhaseCompletion } = useProgress();
   
   const progress = useMemo(() => {
     return roadmapId ? getRoadmapProgress(roadmapId) : getGlobalProgress();
-  }, [roadmapId, progressMap]);
+  }, [roadmapId, getRoadmapProgress, getGlobalProgress]);
   const { theme, resolvedTheme } = useTheme();
   const { language } = useSettings();
   const { roadmaps } = useRoadmaps();
@@ -84,25 +86,22 @@ export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
     return previewPhases || activeRoadmap?.phases[language as "en" | "ar"] || [];
   }, [previewPhases, activeRoadmap, language]);
 
-  const [mounted, setMounted] = useState(false);
+  // false during SSR and hydration, true afterwards
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
   const [selectedPhase, setSelectedPhase] = useState<Phase | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const handleToggleCompletion = (phaseId: string) => {
+  const handleToggleCompletion = useCallback((phaseId: string) => {
     if (roadmapId) {
       togglePhaseCompletion(roadmapId, phaseId);
     }
-  };
+  }, [roadmapId, togglePhaseCompletion]);
 
-  const handleNodeClick = (phaseId: string) => {
+  const handleNodeClick = useCallback((phaseId: string) => {
     const phase = currentPhasesData.find((p) => p.id === phaseId);
     if (phase) {
       setSelectedPhase(phase);
     }
-  };
+  }, [currentPhasesData]);
 
   // Use default theme/language for SSR to prevent hydration mismatch
   const safeTheme = mounted ? (theme === "system" ? resolvedTheme : theme) : "light";
@@ -129,7 +128,7 @@ export default function Roadmap({ roadmapId, previewPhases }: RoadmapProps) {
         },
       };
     });
-  }, [progress, togglePhaseCompletion, currentPhasesData]);
+  }, [progress, currentPhasesData, handleNodeClick, handleToggleCompletion]);
 
   const initialEdges: Edge[] = useMemo(() => {
     const edges: Edge[] = [];

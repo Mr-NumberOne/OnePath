@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { Phase, RoadmapConfig } from "@/types";
 import { generateId } from "@/lib/utils";
@@ -12,7 +12,7 @@ import UserButton from "@/components/UserButton";
 import { useSettings } from "@/contexts/SettingsContext";
 import Link from "next/link";
 import { ArrowLeft, Plus, Save, Download } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,6 @@ import { saveRoadmaps } from "@/lib/roadmapApi";
 
 export default function RoadmapEditor() {
   const params = useParams();
-  const router = useRouter();
   const id = params.id as string;
   const { roadmaps, refreshRoadmaps } = useRoadmaps();
   const { language } = useSettings();
@@ -32,14 +31,16 @@ export default function RoadmapEditor() {
   const [radarCatsInputEn, setRadarCatsInputEn] = useState("");
   const [radarCatsInputAr, setRadarCatsInputAr] = useState("");
 
-  useEffect(() => {
-    const existing = roadmaps.find((r) => r.id === id);
-    if (existing) {
-      setDraftRoadmap(existing);
-      setRadarCatsInputEn(existing.radarCategories?.en?.join(" - ") || "");
-      setRadarCatsInputAr(existing.radarCategories?.ar?.join(" - ") || "");
-    }
-  }, [roadmaps, id]);
+  // Start a fresh draft whenever the stored roadmap changes (first load, after a save).
+  // Done during render, as React recommends, rather than in an effect.
+  const existing = roadmaps.find((r) => r.id === id);
+  const [loadedFrom, setLoadedFrom] = useState<RoadmapConfig | null>(null);
+  if (existing && existing !== loadedFrom) {
+    setLoadedFrom(existing);
+    setDraftRoadmap(existing);
+    setRadarCatsInputEn(existing.radarCategories?.en?.join(" - ") || "");
+    setRadarCatsInputAr(existing.radarCategories?.ar?.join(" - ") || "");
+  }
 
   if (!draftRoadmap) {
     return <div className="p-12 text-center">Loading...</div>;
@@ -231,7 +232,7 @@ export default function RoadmapEditor() {
             </div>
             
             <div className="flex flex-col gap-4">
-              {currentPhases.sort((a,b) => a.order - b.order).map((phase) => (
+              {[...currentPhases].sort((a,b) => a.order - b.order).map((phase) => (
                 <PhaseForm 
                   key={phase.id} 
                   phase={phase} 

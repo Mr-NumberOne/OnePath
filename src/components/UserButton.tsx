@@ -1,6 +1,6 @@
 "use client";
 
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { LogIn, LogOut, Loader2, User, Settings } from "lucide-react";
 import Link from "next/link";
@@ -53,9 +53,7 @@ export default function UserButton() {
       console.error("Failed to clear roadmaps on logout", e);
     }
 
-    // @ts-ignore
     if (typeof window !== 'undefined' && window.desktopAPI?.logout) {
-      // @ts-ignore
       await window.desktopAPI.logout();
     }
 

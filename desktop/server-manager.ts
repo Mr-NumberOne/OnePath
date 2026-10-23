@@ -7,7 +7,7 @@ import { CLIENT_ID, CLIENT_SECRET } from './env';
 
 export async function findFreePort(startPort: number = 3000): Promise<number> {
   return new Promise((resolve, reject) => {
-    let port = startPort;
+    const port = startPort;
     const server = net.createServer();
     
     server.listen(port, '127.0.0.1', () => {
