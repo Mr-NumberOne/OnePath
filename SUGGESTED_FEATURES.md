@@ -24,7 +24,7 @@ OnePath has a single user, so none of these assume accounts, teams or a shared s
 | 14 | Richer resources (type, duration, done) | Learning | S | The `Resource` type and `completedResources` exist, unused |
 | 15 | Study reminders in the desktop app | Desktop | S | Native notifications and a tray icon |
 | 16 | Automatic Drive sync | Sync | M | Backups happen without remembering to click |
-| 17 | Shareable roadmap file | Sharing | S | Send a roadmap to a friend as one file |
+| 17 | Share a roadmap with a friend | Sharing | S | JSON export/import exists; add a share flow and a preview |
 | 18 | Installable web app (PWA) with offline use | Platform | M | `site.webmanifest` exists but is empty |
 
 ---
@@ -121,22 +121,22 @@ When a roadmap is finished, generate a bilingual certificate (name, roadmap, dat
 
 - **Builds on:** progress data and the radar categories.
 
-### 17. Shareable roadmap file — S
-Export one roadmap as a single file (or a link to a file in your Drive) that someone else can import into their own OnePath, with progress left out.
+### 17. Share a roadmap with a friend — S
+Exporting one roadmap as a file and importing it elsewhere already works (**Export to JSON** on a roadmap card, then **Import**; progress is never included). What's left is making it pleasant to share: a "Share" button that uploads the file to your Drive and gives you a link, and an import preview (title, phase count, languages) before the roadmap is added.
 
-- **Builds on:** the JSON export/import planned in IMPROVEMENTS.md (4.2); this adds a friendly share and import flow on top.
+- **Builds on:** `src/lib/roadmapJson.ts` (export, schema-checked import, new ID on clashes), `src/lib/gdrive.ts`, and the preview pattern in `src/components/RestoreDialog.tsx`.
 
 ## Desktop and sync
 
 ### 15. Study reminders in the desktop app — S
 Native notifications at the times you choose ("Time for 30 minutes of Phase 3"), a tray icon with today's goal, and an option to start OnePath with Windows.
 
-- **Builds on:** the Electron main process in `desktop/main.ts`; pairs with the study plan (1).
+- **Builds on:** the Electron main process in `desktop/main.ts` (which already runs background work such as the update check in `desktop/updater.ts`); pairs with the study plan (1).
 
 ### 16. Automatic Drive sync — M
 Back up to Drive automatically (on changes, at most every few minutes, and on close), and on start-up offer to pull a newer backup from another device instead of always asking at login.
 
-- **Builds on:** `src/lib/backup.ts`, `src/lib/gdrive.ts` and the token refresh in `src/lib/driveToken.ts`. The restore preview planned in IMPROVEMENTS.md (4.4) is a good companion.
+- **Builds on:** `src/lib/backup.ts` (backups now record `createdAt`, so "newer" is easy to tell), `src/lib/gdrive.ts`, the token refresh in `src/lib/driveToken.ts`, and the restore preview in `src/components/RestoreDialog.tsx`, which can show the newer backup before pulling it.
 
 ### 18. Installable web app with offline use — M
 Make the web version installable on phones and desktops, and cache the app shell so progress can be viewed and ticked offline, syncing when back online.
