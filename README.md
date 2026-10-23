@@ -187,7 +187,7 @@ Fill out the attached Excel template completely. Assign realistic estimated stud
 ## ⚙️ Data Storage Architecture
 
 **Web Version:**
-- **Roadmap Data:** Stored server-side in a local JSON file at `src/data/custom-roadmap.json`.
+- **Roadmap Data:** Stored server-side in a local JSON file, `custom-roadmap.json`. By default it lives in `src/data/`; set `ONEPATH_DATA_DIR` to a writable, persistent folder when deploying, because the project folder may be read-only or replaced on each deploy. Serverless hosts without a persistent disk can't keep this file.
 - **User Progress:** Stored in the browser's `localStorage` (Offline-first approach).
 
 **Desktop Version (Electron):**
