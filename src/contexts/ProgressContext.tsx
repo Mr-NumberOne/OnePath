@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState, useEffect } from "react";
 import { UserProgressMap, RoadmapProgress } from "@/types";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -56,7 +56,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
             if (parsed.completedPhases) {
               setProgressMap({ "demo-roadmap": parsed });
             }
-          } catch(e) {}
+          } catch {
+            // Ignore unreadable legacy progress
+          }
         }
       }
       setIsLoaded(true);
@@ -70,11 +72,11 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     }
   }, [progressMap, isLoaded]);
 
-  const getRoadmapProgress = (roadmapId: string): RoadmapProgress => {
+  const getRoadmapProgress = useCallback((roadmapId: string): RoadmapProgress => {
     return progressMap[roadmapId] || defaultProgress;
-  };
+  }, [progressMap]);
 
-  const getGlobalProgress = (): RoadmapProgress => {
+  const getGlobalProgress = useCallback((): RoadmapProgress => {
     const global: RoadmapProgress = { ...defaultProgress };
     // Clone arrays to prevent mutation
     global.completedPhases = [];
@@ -97,9 +99,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       global.studyHours += p.studyHours;
     });
     return global;
-  };
+  }, [progressMap, roadmaps]);
 
-  const togglePhaseCompletion = (roadmapId: string, phaseId: string) => {
+  const togglePhaseCompletion = useCallback((roadmapId: string, phaseId: string) => {
     setProgressMap((prevMap) => {
       const prev = prevMap[roadmapId] || defaultProgress;
       const isCompleted = prev.completedPhases.includes(phaseId);
@@ -131,15 +133,15 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         }
       };
     });
-  };
+  }, [roadmaps, language]);
 
-  const toggleStepCompletion = (roadmapId: string, phaseId: string, stepId: string) => {
+  const toggleStepCompletion = useCallback((roadmapId: string, phaseId: string, stepId: string) => {
     setProgressMap((prevMap) => {
       const prev = prevMap[roadmapId] || defaultProgress;
       const prevSteps = prev.completedSteps || [];
       const isStepCompleted = prevSteps.includes(stepId);
       
-      let newSteps = isStepCompleted
+      const newSteps = isStepCompleted
         ? prevSteps.filter((id) => id !== stepId)
         : [...prevSteps, stepId];
 
@@ -179,12 +181,17 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         }
       };
     });
-  };
+  }, [roadmaps, language]);
 
-  const resetProgress = () => setProgressMap({});
+  const resetProgress = useCallback(() => setProgressMap({}), []);
+
+  const value = useMemo(
+    () => ({ progressMap, getGlobalProgress, getRoadmapProgress, togglePhaseCompletion, toggleStepCompletion, resetProgress }),
+    [progressMap, getGlobalProgress, getRoadmapProgress, togglePhaseCompletion, toggleStepCompletion, resetProgress]
+  );
 
   return (
-    <ProgressContext.Provider value={{ progressMap, getGlobalProgress, getRoadmapProgress, togglePhaseCompletion, toggleStepCompletion, resetProgress }}>
+    <ProgressContext.Provider value={value}>
       {children}
     </ProgressContext.Provider>
   );

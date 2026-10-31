@@ -1,9 +1,11 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
 import path from 'path';
-import crypto from 'crypto';
-import { setupStorageHandlers, getStore, saveStore } from './storage';
+import { setupStorageHandlers, getAuthSecret } from './storage';
 import { ServerManager } from './server-manager';
 import { startGoogleAuthFlow, clearAuthTokens } from './auth';
+import { setupAutoUpdates } from './updater';
+
+const MAX_LOAD_RETRIES = 5;
 
 const serverManager = new ServerManager();
 let mainWindow: BrowserWindow | null = null;
@@ -12,12 +14,7 @@ async function createWindow() {
   setupStorageHandlers();
 
   // Generate or load AUTH_SECRET for Next.js Desktop Mode
-  const store = getStore();
-  if (!store.authSecret) {
-    store.authSecret = crypto.randomBytes(32).toString('hex');
-    saveStore(store);
-  }
-  process.env.AUTH_SECRET = store.authSecret;
+  process.env.AUTH_SECRET = getAuthSecret();
   process.env.DESKTOP_MODE = 'true';
   process.env.AUTH_TRUST_HOST = 'true';
 
@@ -26,9 +23,9 @@ async function createWindow() {
     try {
       const result = await startGoogleAuthFlow();
       return result;
-    } catch (e: any) {
+    } catch (e) {
       console.error("Google auth failed:", e);
-      throw new Error(e.message || "Auth failed");
+      throw new Error((e instanceof Error && e.message) || "Auth failed");
     }
   });
 
@@ -67,10 +64,22 @@ async function createWindow() {
     const loadURL = `http://127.0.0.1:${port}`;
     mainWindow.loadURL(loadURL);
 
-    // Handle page load failures (e.g., server not ready yet)
-    mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    // Handle page load failures (e.g. the dev server restarting). The packaged
+    // server is already answering by now, so a few retries are enough.
+    let failedLoads = 0;
+    mainWindow.webContents.on('did-finish-load', () => {
+      failedLoads = 0;
+    });
+    mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, _url, isMainFrame) => {
+      // -3 (ERR_ABORTED) just means another navigation replaced this one
+      if (!isMainFrame || errorCode === -3) return;
       console.error(`Page failed to load: ${errorCode} ${errorDescription}`);
-      // Retry after a short delay — the server may still be starting
+
+      failedLoads += 1;
+      if (failedLoads > MAX_LOAD_RETRIES) {
+        showFatalError(`The app page could not be loaded (${errorDescription}).`);
+        return;
+      }
       setTimeout(() => {
         mainWindow?.loadURL(loadURL);
       }, 2000);
@@ -90,26 +99,36 @@ async function createWindow() {
       return { action: 'deny' };
     });
 
+    // The window only ever shows the local app. Google sign-in runs in the
+    // system browser (see auth.ts), so every other link opens externally.
+    // Auth.js may build redirect URLs with "localhost" instead of 127.0.0.1
+    const appOrigins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      const parsedUrl = new URL(url);
-      // If it's trying to navigate away from the local server to a remote address
-      if (parsedUrl.origin !== `http://127.0.0.1:${port}`) {
-        // Exception: Google OAuth flow might navigate to accounts.google.com?
-        // Wait, OAuth usually redirects the whole window for Google, and then redirects back.
-        // We must allow navigation to trusted OAuth providers if necessary, OR we use the system browser.
-        // If Auth.js is used, it navigates the window to accounts.google.com.
-        // So we shouldn't strictly block all navigation, but we should block file:, javascript:, etc.
-        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-            event.preventDefault();
-        }
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        event.preventDefault();
+        return;
+      }
+      if (appOrigins.has(parsedUrl.origin)) return;
+
+      event.preventDefault();
+      if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+        shell.openExternal(url);
       }
     });
 
   } catch (error) {
     console.error('Failed to start application:', error);
-    // Could show a native error dialog here
-    app.quit();
+    showFatalError(error instanceof Error ? error.message : String(error));
   }
+}
+
+// Shows a native error dialog and quits; used when the app can't start.
+function showFatalError(detail: string) {
+  dialog.showErrorBox('OnePath could not start', `${detail}\n\nPlease restart the app. If this keeps happening, reinstall OnePath.`);
+  app.quit();
 }
 
 // Single instance lock
@@ -125,7 +144,10 @@ if (!gotTheLock) {
     }
   });
 
-  app.whenReady().then(createWindow);
+  app.whenReady().then(async () => {
+    await createWindow();
+    setupAutoUpdates(() => mainWindow);
+  });
 }
 
 app.on('window-all-closed', () => {

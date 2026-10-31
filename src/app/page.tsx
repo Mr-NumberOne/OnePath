@@ -3,7 +3,6 @@
 import { useProgress } from "@/contexts/ProgressContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useRoadmaps } from "@/contexts/RoadmapContext";
-import SkillRadar from "@/components/dashboard/SkillRadar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import UserButton from "@/components/UserButton";
