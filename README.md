@@ -17,6 +17,11 @@
 
 ---
 
+## 🎬 Promo
+
+https://github.com/user-attachments/assets/79f3e303-2674-4b46-b08d-60b5b8600519
+
+
 ## 🚀 Features
 
 - **Interactive Node-based Roadmaps**: Visualize complex learning paths and phases using `React Flow` with a fully interactive pan-and-zoom interface.
@@ -246,8 +251,5 @@ Copyright © 2026 Mr.Number One. All rights reserved.
 
 ---
 
-## 🎬 Demo
 
-<video src="docs/media/brag.mp4" poster="docs/media/brag.jpg" controls muted width="950">
-  Your viewer can't play this video. <a href="docs/media/brag.mp4">Download the demo (MP4)</a>.
-</video>
+
