@@ -243,3 +243,11 @@ Fill out the attached Excel template completely. Assign realistic estimated stud
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 Copyright © 2026 Mr.Number One. All rights reserved.
+
+---
+
+## 🎬 Demo
+
+<video src="docs/media/brag.mp4" poster="docs/media/brag.jpg" controls muted width="950">
+  Your viewer can't play this video. <a href="docs/media/brag.mp4">Download the demo (MP4)</a>.
+</video>
